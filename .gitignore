@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# graphify (generated code-graph index, rebuild with /graphify --wiki)
+/graphify-out/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
