@@ -6,6 +6,16 @@ migrations is Task 2 of the build order (implementationplanv2.md Section 7)
 and is still pending.
 
 ## Decisions
+- **2026-09-09** | Chose **Supabase** as the managed Postgres provider
+  (plan Section 1 previously left it open between Supabase/Neon) | **why**:
+  user decision | **implementation**: two connection strings —
+  `DATABASE_URL` (pooled/Supavisor, port 6543) for the app runtime via
+  `src/lib/db.ts`'s adapter, `DIRECT_URL` (direct, port 5432) for
+  `prisma migrate`/introspection via `prisma.config.ts`, since Supabase's
+  pooler doesn't support the DDL + shadow-database work migrate needs |
+  **not yet done**: no actual Supabase project has been created — a real
+  project + credentials are still needed before Task 2 (DB schema +
+  migrations) can run against it.
 - **2026-09-09** | Pinned `prisma` and `@prisma/client` to matching
   `7.10.0`, added `@prisma/adapter-pg`, moved connection config from
   `schema.prisma`'s `datasource.url` to `prisma.config.ts` | **why**:

@@ -3,8 +3,8 @@
 ## Tech Stack
 - Frontend: Next.js 16 (App Router) + React 19 + Tailwind CSS 4
 - Backend: Next.js API routes (same app, no separate server)
-- Database: PostgreSQL, accessed via Prisma ORM 7.10.0 through the
-  `@prisma/adapter-pg` driver adapter
+- Database: PostgreSQL via **Supabase**, accessed via Prisma ORM 7.10.0
+  through the `@prisma/adapter-pg` driver adapter
 - Auth: NextAuth v4, credentials provider (currently a stub — see
   subsystem-notes.md)
 - Hosting target: Vercel
@@ -19,15 +19,21 @@
    and `@prisma/client` pinned to the same version — a version mismatch
    (8.0.0-rc.13 vs 7.10.0) previously broke client generation. See
    decisions/log.md.
-2. **No ML/LLM calls**: gap-analysis, allocation, and fund/insurance
+2. **Two Supabase connection strings, not one**: `DATABASE_URL` (pooled,
+   Supavisor transaction mode, port 6543) is what the running app uses via
+   the adapter in `src/lib/db.ts`. `DIRECT_URL` (direct, port 5432) is what
+   `prisma.config.ts` uses for `prisma migrate`/introspection — the pooler
+   doesn't support the DDL + shadow-database operations migrate needs.
+   Never point `prisma.config.ts`'s datasource at the pooled URL.
+3. **No ML/LLM calls**: gap-analysis, allocation, and fund/insurance
    matching logic must stay pure/deterministic functions.
-3. **`DEMO_MODE` gate** (`src/lib/config.ts`): Sections 5.2/6.2/6.3
+4. **`DEMO_MODE` gate** (`src/lib/config.ts`): Sections 5.2/6.2/6.3
    (named fund and insurance plan examples) must stay behind this flag.
    It exists because showing named financial products without SEBI RIA /
    IRDAI web-aggregator licensing is only legal while this stays an
    unpublished demo/portfolio project. Do not remove or bypass this gate
    without re-reading implementationplanv2.md Section 0.2 first.
-4. Fund/insurance example selection must stay rule-based (sorted by
+5. Fund/insurance example selection must stay rule-based (sorted by
    AUM / sum-assured proximity) — never a ranked "best pick," to avoid
    crossing into personalized advice.
 

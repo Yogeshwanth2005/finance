@@ -6,7 +6,7 @@ Build order per implementationplanv2.md Section 7. Status as of 2026-09-09:
 | # | Task | Status |
 |---|---|---|
 | 1 | Project scaffold | Done |
-| 2 | DB schema + migrations (`fund_reference`, `insurance_plan_reference`, 5 new `gap_analysis_results` columns) | **Next up** — schema.prisma has no models yet |
+| 2 | DB schema + migrations (`fund_reference`, `insurance_plan_reference`, 5 new `gap_analysis_results` columns) | **Blocked on Supabase project creation** — provider chosen (2026-09-09), but no real Supabase project/credentials exist yet; `.env`/`.env.example` have the `DATABASE_URL`/`DIRECT_URL` placeholders ready |
 | 3 | Onboarding flow UI — two-part disclaimer (Section 3) | Not started |
 | 4 | Gap analysis engine — 4.1–4.5 (emergency fund, debt priority, term/health gap, KPI layer) | Not started |
 | 5 | Allocation engine — 5.1–5.2 (base allocation + fund examples) | Not started |

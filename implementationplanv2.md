@@ -22,7 +22,7 @@ This build is a personal/portfolio project — not published, not offered as a s
 *(unchanged from v1)*
 - Frontend: Next.js (React) + Tailwind CSS, single web app, mobile-responsive
 - Backend: Next.js API routes
-- Database: PostgreSQL via a managed provider (Supabase or Neon)
+- Database: PostgreSQL via Supabase
 - Auth: Managed provider (Supabase Auth or Clerk)
 - Hosting: Vercel
 - No ML libraries, no LLM API calls — every calculation is deterministic. The two new lookups in v2 (fund/insurance reference matching) are plain table queries against curated data, not model-driven recommendations — the "no ML" principle from v1 still holds.

@@ -7,6 +7,9 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // Direct (non-pooled) connection: `prisma migrate`/introspection need
+    // DDL + shadow-database support that Supabase's pooler doesn't provide.
+    // The running app connects separately via DATABASE_URL (src/lib/db.ts).
+    url: env("DIRECT_URL"),
   },
 });
