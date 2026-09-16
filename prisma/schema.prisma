@@ -1,5 +1,15 @@
 // Prisma schema for the Indian personal finance educational demo app.
-// Models are added in Task 2 (DB schema + migrations).
+//
+// `users`, `financial_profile`, `insurance_profile`, `allocation_results`,
+// and the base `gap_analysis_results` columns are specified in
+// implementationplanv2.md as "carried over unchanged from v1," but no v1
+// schema document exists in this repo (checked `git log --all` — only
+// implementationplanv2.md was ever committed). Their field-level shape
+// below is inferred from every field those models are referenced by
+// throughout implementationplanv2.md (Sections 2, 4, 5, 6, 8) rather than
+// copied from a v1 source of truth. See .agents/decisions/log.md
+// (2026-09-16 entry) for the reasoning and a list of the specific
+// assumptions made — review that before treating this as final.
 
 generator client {
   provider = "prisma-client-js"
@@ -7,4 +17,192 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum RiskTolerance {
+  conservative
+  moderate
+  aggressive
+}
+
+enum EmergencyFundStatus {
+  inadequate
+  building
+  adequate
+}
+
+enum FundCategory {
+  equity_large_cap
+  equity_diversified
+  debt_short_duration
+  fixed_deposit
+  gold_etf
+  sovereign_gold_bond
+}
+
+enum InsurancePlanType {
+  term
+  health
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  hashedPassword String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  financialProfile   FinancialProfile?
+  insuranceProfile   InsuranceProfile?
+  allocationResults  AllocationResult[]
+  gapAnalysisResults GapAnalysisResult[]
+
+  @@map("users")
+}
+
+// Onboarding Screens 2-6 inputs (implementationplanv2.md Section 3).
+// One row per user - a resubmission updates it in place, it isn't
+// versioned; GapAnalysisResult/AllocationResult are the versioned,
+// point-in-time snapshots computed from this.
+model FinancialProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  age                    Int
+  dependentsCount        Int      @default(0)
+  monthlyIncome          Decimal  @db.Decimal(14, 2)
+  monthlyExpenses        Decimal  @db.Decimal(14, 2)
+  currentSavings         Decimal  @db.Decimal(14, 2)
+  riskTolerance          RiskTolerance
+  investmentHorizonYears Int
+
+  // DPDP consent (implementationplanv2.md Section 2 note) - required
+  // before this profile's data can be used in gap analysis / allocation.
+  consentGivenAt DateTime?
+
+  existingDebts ExistingDebt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("financial_profile")
+}
+
+// Section 4's debt-priority logic sorts these by interest rate, and
+// Section 4.5's debt-to-income formula computes an EMI per row from
+// outstandingAmount/interestRatePct/tenureMonths.
+model ExistingDebt {
+  id                 String           @id @default(cuid())
+  financialProfileId String
+  financialProfile   FinancialProfile @relation(fields: [financialProfileId], references: [id], onDelete: Cascade)
+
+  label             String
+  outstandingAmount Decimal @db.Decimal(14, 2)
+  interestRatePct   Decimal @db.Decimal(5, 2)
+  tenureMonths      Int
+
+  createdAt DateTime @default(now())
+
+  @@map("existing_debt")
+}
+
+model InsuranceProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  existingTermCoverAmount   Decimal @db.Decimal(14, 2) @default(0)
+  personalHealthCoverAmount Decimal @db.Decimal(14, 2) @default(0)
+  employerHealthCoverAmount Decimal @db.Decimal(14, 2) @default(0)
+
+  consentGivenAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("insurance_profile")
+}
+
+// Versioned snapshot - one row per allocation run (Section 5.1 output),
+// not one row per user, so history/recompute-over-time is preserved.
+model AllocationResult {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  equityPct Decimal @db.Decimal(5, 2)
+  debtPct   Decimal @db.Decimal(5, 2)
+  goldPct   Decimal @db.Decimal(5, 2)
+
+  computedAt DateTime @default(now())
+
+  @@index([userId, computedAt])
+  @@map("allocation_results")
+}
+
+model GapAnalysisResult {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // v1 base columns (implementationplanv2.md Section 2)
+  emergencyFundTarget  Decimal             @db.Decimal(14, 2)
+  emergencyFundCurrent Decimal             @db.Decimal(14, 2)
+  emergencyFundStatus  EmergencyFundStatus
+  // Ordered array of ExistingDebt ids, priority order per Section 4's
+  // debt-prioritization rule (highest-interest first).
+  debtPriorityOrder Json
+  termCoverGap      Decimal @db.Decimal(14, 2)
+  healthCoverGap    Decimal @db.Decimal(14, 2)
+
+  // v2 KPI/ratio layer (Section 4.5, NEW)
+  emergencyFundCoveragePct Decimal @db.Decimal(7, 2)
+  termCoverAdequacyPct     Decimal @db.Decimal(7, 2)
+  healthCoverAdequacyPct   Decimal @db.Decimal(7, 2)
+  savingsRatePct           Decimal @db.Decimal(7, 2)
+  debtToIncomePct          Decimal @db.Decimal(7, 2)
+
+  computedAt DateTime @default(now())
+
+  @@index([userId, computedAt])
+  @@map("gap_analysis_results")
+}
+
+// NEW in v2 - Section 2, seeded per Section 9.1. Not user-owned; general
+// product reference data, gated behind DEMO_MODE at the query layer.
+model FundReference {
+  id           String       @id @default(cuid())
+  schemeCode   String       @unique
+  schemeName   String
+  amcName      String
+  category     FundCategory
+  expenseRatio Decimal      @db.Decimal(5, 2)
+  latestNav    Decimal      @db.Decimal(10, 4)
+  navDate      DateTime     @db.Date
+  externalUrl  String
+  lastSyncedAt DateTime     @default(now())
+
+  @@index([category])
+  @@map("fund_reference")
+}
+
+// NEW in v2 - Section 2, seeded per Section 9.2. Not user-owned; general
+// product reference data, gated behind DEMO_MODE at the query layer.
+model InsurancePlanReference {
+  id                    String            @id @default(cuid())
+  insurerName           String
+  planName              String
+  planType              InsurancePlanType
+  sumAssuredMin         Decimal           @db.Decimal(14, 2)
+  sumAssuredMax         Decimal           @db.Decimal(14, 2)
+  indicativePremiumNote String
+  keyFeatures           Json
+  externalUrl           String
+  lastUpdatedAt         DateTime          @default(now())
+  sourceNote            String
+
+  @@index([planType])
+  @@map("insurance_plan_reference")
 }

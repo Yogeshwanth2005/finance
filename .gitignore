@@ -43,3 +43,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vendored agent skills (reinstall via: npx skills add prisma/skills --agent cursor claude-code codex windsurf --skill '*')
+# .agents/context, .agents/decisions, .agents/projects are the hand-written second brain - stay tracked.
+.agents/skills/
+.windsurf
+.claude
+skills-lock.json
