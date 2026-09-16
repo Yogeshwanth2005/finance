@@ -7,8 +7,67 @@
   Confirmed applied via `prisma migrate status` ("Database schema is up
   to date"). Required being off the office Wi-Fi — see
   context/subsystem-notes.md's port-blocking gotcha.
+- **Pending**: `FundReference` needs an `aumCr` column (Task 5 needs it
+  for Section 5.2's AUM-descending sort — missed when Task 2 wrote the
+  schema) plus the claim-settlement columns from the Section 6.3
+  amendment below. Blocked on the office-Wi-Fi port issue as of
+  2026-09-16; not yet attempted since.
 
 ## Decisions
+- **2026-09-16** | Built the allocation engine (`src/lib/allocation.ts`,
+  TDD, 12 passing Vitest tests) covering Section 5.1 (age-based base
+  equity, risk-tolerance scaling, short-horizon shift) and 5.2's fund
+  selection logic (bucket-to-category mapping, AUM-descending sort) |
+  **why**: next item in the build order (Task 5) | **assumptions made,
+  not from a v1 source** (new config constants, both documented inline):
+  - `base_equity_pct = config.base_equity_age_constant (100) - age` — the
+    standard "100 minus age" glide-path rule of thumb; v1 could have used
+    a different constant (110, 120) or a non-linear curve.
+  - Gold is a flat `config.gold_allocation_pct` (10%) diversification
+    sleeve, capped by whatever's left after equity so equity+debt+gold
+    always sums to exactly 100 — not derived from age/risk/horizon. No
+    spec at all for the debt/gold split existed before this.
+  - Equity is clamped to [0, 100] before the gold/debt split, so extreme
+    inputs (very young + aggressive, or very old + conservative +
+    short-horizon) can't push debt or gold negative.
+  **found while building this**: `fund_reference` (Task 2's schema) has
+  no AUM/fund-size column, but Section 5.2 requires sorting fund examples
+  by AUM descending — an oversight from Task 2, not a new assumption.
+  Added to the Migration Index above as pending; `selectFundExamples`
+  itself is written against a plain `{ id, category, aumCr }` shape
+  decoupled from Prisma, same pattern as `gap-analysis.ts`, so the pure
+  function needed no changes once the column exists — only the DB-wiring
+  step (still not built, see Task 4's same open item) will need it.
+- **2026-09-16** | Amended Section 6.3 to allow a side-by-side comparison
+  table of same-`plan_type` insurance plans (in addition to individual
+  cards), and added claim settlement ratio + average claim settlement
+  time as new fields to show | **why**: user request, after two rounds
+  of narrowing — first proposed "AI suggests insurance" (rejected, see
+  below), then clarified to "just compare packages on cost/features/other
+  factors, don't suggest what to pick." Original Section 6.3 banned
+  comparison tables specifically to avoid a "here's our pick" read; a
+  *neutral fact table* doesn't have that problem, only a *ranked* one
+  does — so the fix was narrowing the rule (no ranking signal), not
+  keeping the table ban | **explicitly still rejected in this same
+  conversation**: using an LLM to choose, rank, or "suggest" which
+  insurance plan to take — that's a personalized recommendation, which
+  requires SEBI RIA / IRDAI licensing for a real service (Section 0.2)
+  and is exactly what Section 5.2's "never a ranked best pick" rule
+  exists to prevent. Also proposed and separately deferred: an
+  insurance/SIP-only chatbot (bigger risk surface than a comparison
+  table — open-ended Q&A can drift off-topic or hallucinate specifics
+  about a named plan) and AI-based translation/simplification of plan
+  text (fine in principle, but should happen once at content-authoring
+  time, human-reviewed, saved as static content — not a live per-request
+  LLM call) | **not yet done**: `InsurancePlanReference` needs 2 new
+  columns (claim settlement ratio, avg. settlement time) + a migration;
+  the comparison-table UI itself isn't built — both still pending
+  whichever task actually builds Section 6.3 (Task 8, Dashboard UI, per
+  the current build order — Task 5 Allocation Engine is next in
+  sequence). Real values for the new fields must come from IRDAI's
+  public annual claim-settlement disclosures, per identity.md's "don't
+  invent reference data" rule — same sourcing standard as everything
+  else in `fund_reference`/`insurance_plan_reference`.
 - **2026-09-16** | Built the gap-analysis engine (`src/lib/gap-analysis.ts`,
   TDD, 15 passing Vitest tests) covering Sections 4.1-4.5: emergency fund,
   debt EMI/prioritization, term/health cover gap, and the 4.5 KPI layer,

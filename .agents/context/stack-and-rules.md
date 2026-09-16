@@ -35,9 +35,14 @@
    IRDAI web-aggregator licensing is only legal while this stays an
    unpublished demo/portfolio project. Do not remove or bypass this gate
    without re-reading implementationplanv2.md Section 0.2 first.
-5. Fund/insurance example selection must stay rule-based (sorted by
+5. Fund/insurance example *selection* must stay rule-based (sorted by
    AUM / sum-assured proximity) — never a ranked "best pick," to avoid
-   crossing into personalized advice.
+   crossing into personalized advice. *Presentation* may compare
+   selected plans side by side (amended 2026-09-16, Section 6.3) as long
+   as every field shown is a plain fact — no ranking, no "best value"
+   badge, no score/star rating, no sort implying one plan is better.
+   Selection logic and this display rule are separate; don't let a
+   ranking signal leak into the comparison layout.
 
 ## File Map
 - `src/lib/config.ts` — all editable tunable constants (plan Section 8)

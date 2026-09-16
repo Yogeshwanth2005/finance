@@ -15,6 +15,12 @@ export const config = {
   /** Interest rate (%) above which a debt is treated as high-interest for prioritization. */
   high_interest_debt_threshold: 12,
 
+  /**
+   * Constant used in the age-based glide path: base_equity_pct = this minus
+   * age (e.g. 100 - age). No v1 source for this value — see decisions/log.md.
+   */
+  base_equity_age_constant: 100,
+
   /** Multiplier applied to base equity allocation based on stated risk tolerance. */
   risk_tolerance_multipliers: {
     conservative: 0.8,
@@ -27,6 +33,14 @@ export const config = {
 
   /** Percentage points shifted from equity to debt when the short-horizon threshold applies. */
   short_horizon_shift: 20,
+
+  /**
+   * Flat gold allocation, as a percentage of the portfolio (diversification
+   * sleeve, not derived from age/risk/horizon). Capped by whatever's left
+   * after equity, so it never pushes debt negative. No v1 source for this
+   * value — see decisions/log.md.
+   */
+  gold_allocation_pct: 10,
 
   /** Number of reference fund examples shown per allocation category. */
   fund_examples_per_category: 3,

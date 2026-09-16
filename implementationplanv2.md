@@ -120,8 +120,18 @@ Under the allocation snapshot, show the Section 5.2 example schemes as small car
 Under the protection status section:
 - If `term_cover_gap > 0`: show up to `config.insurance_examples_per_gap_type` (default 2) rows from `insurance_plan_reference` where `plan_type = 'term'`, sorted by how closely `sum_assured_max` approximates the gap.
 - If `health_cover_gap > 0`: same query, filtered to `plan_type = 'health'`.
-- Each card: insurer name, plan name, sum assured range, 2–3 key features, indicative premium note, and a **"Show more details"** button that opens `external_url` (the insurer's own page) in a new tab.
-- Show cards individually, not as a ranked side-by-side comparison table — keeps the UX as "here are examples," not "here's our pick between insurers."
+- Each card: insurer name, plan name, sum assured range, 2–3 key features, indicative premium note, claim settlement ratio, average claim settlement time, and a **"Show more details"** button that opens `external_url` (the insurer's own page) in a new tab.
+- Selection stays rule-based (sorted by `sum_assured_max` proximity to the gap, per above) — this doesn't change.
+
+**Amended 2026-09-16** (see decisions/log.md): when 2+ plans of the same
+`plan_type` are shown for one gap, they may additionally render as a
+side-by-side comparison table of the same neutral fields listed above —
+same numbers as the cards, laid out for easier side-by-side reading. This
+is still not a recommendation: no ranking, no "best value"/winner
+badge, no score or star rating, no sort order implying one plan is
+better — every column stays a plain fact (cost, feature, claim metric),
+and the user draws their own conclusion. If it can't be built without a
+ranking signal creeping in, fall back to individual cards instead.
 
 ### 6.4 Updated persistent banner text
 Append to the existing v1 banner: *"Fund and insurance plan examples shown are illustrative only — this is a demo project, not a live service."*
