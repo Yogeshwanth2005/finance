@@ -1,20 +1,28 @@
 # Active Roadmap & Technical Debt
 
 ## Backlog
-Build order per implementationplanv2.md Section 7. Status as of 2026-09-16:
+Build order per implementationplanv2.md Section 7. Status as of 2026-09-17:
 
 | # | Task | Status |
 |---|---|---|
 | 1 | Project scaffold | Done |
 | 2 | DB schema + migrations (`fund_reference`, `insurance_plan_reference`, 5 new `gap_analysis_results` columns) | **Done** — migration `20260916152548_init` applied to Supabase, all 8 models live (`prisma migrate status` confirms schema in sync). Note: the 4 carried-over v1 models were reconstructed from context, not a v1 source doc — see decisions/log.md 2026-09-16 entry for the specific assumptions to verify |
-| 3 | Onboarding flow UI — two-part disclaimer (Section 3) | **Done (Screen 1 only)** — `/onboarding` gate with both required acknowledgments, verified in-browser (checkbox states, Continue enable/disable, navigation). Screens 2–6 (the actual data-entry form) are out of scope here — no v1 spec exists for their field-by-field layout, and Task 4's engine isn't built yet to consume submissions — `/onboarding/profile` is a placeholder stub |
-| 4 | Gap analysis engine — 4.1–4.5 (emergency fund, debt priority, term/health gap, KPI layer) | **Done** — `src/lib/gap-analysis.ts`, built TDD, 15 passing Vitest tests (`npm test`). Pure functions only: not yet wired to a DB read/write or an API route, and inputs/outputs are plain numbers, not Prisma `Decimal` |
-| 5 | Allocation engine — 5.1–5.2 (base allocation + fund examples) | **Done** — `src/lib/allocation.ts`, built TDD, 12 passing Vitest tests. `computeAllocation` (5.1) and `selectFundExamples` (5.2) are pure functions, not wired to a DB read/write yet. Found while building this: `fund_reference` is missing the AUM column 5.2 needs — see Known Tech Debt |
-| 6 | Insurance reference matching logic | Not started |
-| 7 | Seed reference data — AMFI sync script + hand-curated insurance seed | Not started |
-| 8 | Dashboard UI — KPI display, fund/insurance cards, gated by `DEMO_MODE` | Not started. Section 6.3 now also calls for a neutral comparison table (cost/features/claim settlement ratio/claim settlement time) when 2+ same-type plans are shown — amended 2026-09-16, see decisions/log.md |
-| 9 | End-to-end test | Not started |
+| 3 | Onboarding flow UI — two-part disclaimer (Section 3) | **Done** — Screens 2-6 built at `/onboarding/profile` (`src/app/onboarding/profile/page.tsx` + `screens.tsx`): 5-step wizard (personal basics, income/savings, debts, insurance cover, review+consent), client-state only, inline validation, POSTs to `/api/onboarding/submit` on final submit. Verified in-browser via Playwright (all 5 steps, validation blocking, Review screen ₹ formatting) — 2026-09-17 |
+| 4 | Gap analysis engine — 4.1–4.5 (emergency fund, debt priority, term/health gap, KPI layer) | **Done and now wired** — `computeGapAnalysis` is called from `POST /api/onboarding/submit` (`src/app/api/onboarding/submit/route.ts`), which converts persisted `Decimal` reads to `number` at the boundary before calling it, per the tech-debt note this resolves |
+| 5 | Allocation engine — 5.1–5.2 (base allocation + fund examples) | **Done and now wired** — `computeAllocation` + `selectFundExamples` called from the submit route and `src/app/dashboard/page.tsx` respectively |
+| 6 | Insurance reference matching logic | **Done** — `src/lib/insurance-matching.ts` (`selectInsuranceExamples`), built TDD, 5 passing Vitest tests, same closest-sum-assured-match pattern as `selectFundExamples`. Wired into the dashboard |
+| 7 | Seed reference data — AMFI sync script + hand-curated insurance seed | **Code done, not yet run** — `prisma/seed.ts` (18 funds across 6 categories, 4 insurance plans across 2 types), `tsx` wired via `prisma.config.ts`'s `migrations.seed`. Blocked on DB access (office Wi-Fi port block, see subsystem-notes.md) — run `npx prisma db seed` once reachable |
+| 8 | Dashboard UI — KPI display, fund/insurance cards, gated by `DEMO_MODE` | **Code done, not yet verified against live data** — `/dashboard` (`src/app/dashboard/page.tsx` + `KpiCard`/`FundCard`/`InsuranceCard.tsx`): 5 KPI ring meters, allocation snapshot, `DEMO_MODE`-gated fund/insurance cards (single-plan card vs. neutral comparison table per the Section 6.3 amendment). Type-checks clean; DB-backed rendering not yet confirmed in-browser (blocked on DB access) |
+| 9 | End-to-end test | **Partially done** — the non-DB-dependent half of the manual walkthrough (wizard UI, validation, navigation) verified via Playwright 2026-09-17. The DB-dependent half (submit → dashboard render, KPI value check against hand-computed expected values, `DEMO_MODE=false` check, external link check) is blocked on DB access — see `docs/superpowers/plans/2026-09-17-onboarding-intake-and-dashboard.md` Task 7 Step 7 for the exact steps to run once reachable |
 | 10 | Deploy to Vercel (`DEMO_MODE=true`, private link only) | Not started |
+
+## Proposed / Not Yet Scoped
+- **SIP management (CAS import, view-only)** — new feature, not part of
+  implementationplanv2.md's original Task 1-10 build order. Brainstorming
+  paused 2026-09-17 pending a decision on CAS parser format scope — see
+  decisions/log.md's 2026-09-17 entry for the full narrowing history
+  before resuming this conversation. No design doc, schema, or code
+  exists yet.
 
 ## Tooling Notes
 - `graphify` (codebase knowledge-graph/wiki index) is installed via
@@ -31,12 +39,9 @@ Build order per implementationplanv2.md Section 7. Status as of 2026-09-16:
 - `src/lib/auth.ts`: credentials provider `authorize()` always returns
   `null` — intentional stub, real provider decision deferred to deploy
   time. Not a bug, but blocks any feature that needs a real logged-in
-  user.
-- `/onboarding/profile` (Screens 2–6: income/expenses/debt/insurance
-  intake) is an unbuilt placeholder — needs real field spec (tied to the
-  `FinancialProfile`/`InsuranceProfile`/`ExistingDebt` schema) and
-  somewhere to submit to (Task 4's engine) before it can be built for
-  real.
+  user. Unaffected by today's work — the wizard/dashboard use the
+  separate cookie-identified "demo user" (`src/lib/demo-user.ts`), not
+  NextAuth.
 - `financial_profile`/`insurance_profile`/`allocation_results` and
   `gap_analysis_results`' base columns have no v1 source document — their
   shape in `prisma/schema.prisma` is inferred, not authoritative. The two
@@ -46,20 +51,26 @@ Build order per implementationplanv2.md Section 7. Status as of 2026-09-16:
   thresholds and the flat (not dependents-scaled) health cover baseline
   are new assumptions from that same entry, not verified against a real
   v1 source either.
-- `computeGapAnalysis` (Task 4) isn't wired to anything yet — no API
-  route calls it, and it takes/returns plain `number`s while
-  `prisma/schema.prisma` stores money as `Decimal`. Whichever task wires
-  it up (likely Task 3's `/onboarding/profile` or a new API route) needs
-  to convert `Decimal` ↔ `number` at that boundary.
-- `InsurancePlanReference` needs 2 new columns (claim settlement ratio,
-  average claim settlement time) + a migration for the amended Section
-  6.3 comparison table — not yet added to `prisma/schema.prisma`. Real
-  values must come from IRDAI's public annual disclosures when Task 7
-  (seed reference data) runs, not invented.
-- `FundReference` is also missing a column: `aumCr` (or similar), needed
-  for Section 5.2's "sort by AUM descending" rule — a Task 2 oversight,
-  caught while building Task 5. Bundle this migration with the
-  `InsurancePlanReference` one above (both blocked on the same office-Wi-Fi
-  port issue as of 2026-09-16 — see subsystem-notes.md).
-- `computeAllocation`/`selectFundExamples` (Task 5), like `computeGapAnalysis`
-  (Task 4), aren't wired to a DB or API route yet.
+- **Migration pending DB access**: `prisma/schema.prisma` already has
+  `FundReference.aumCr`, `InsurancePlanReference.claimSettlementRatioPct`,
+  `InsurancePlanReference.avgClaimSettlementDays` (added 2026-09-17), but
+  `prisma migrate dev` hasn't been run yet — blocked on the office-Wi-Fi
+  port issue (see subsystem-notes.md), hit again today. Run it, then
+  `npx prisma db seed`, before Tasks 7-9 can actually be exercised against
+  a live DB.
+- `getOrCreateDemoUser()` (`src/lib/demo-user.ts`) can't set its cookie
+  when called from a Server Component (Next.js restriction — only Server
+  Actions/Route Handlers may write cookies). A first-ever visit straight
+  to `/dashboard` (no cookie yet) creates an orphaned `User` row with no
+  profile, then redirects to `/onboarding` without the cookie persisting;
+  the real cookie gets set once the wizard's `POST` route runs. Harmless
+  demo-data debris, not a correctness bug — documented in the file's own
+  comment.
+- Dashboard KPI ring meters (`src/app/dashboard/KpiCard.tsx`) all use a
+  single neutral hue (the app's `--accent` token), not a red/amber/green
+  status color, for 4 of 5 cards — only the emergency-fund card shows a
+  status label, and only because `emergencyFundStatus` is already
+  computed data. Deliberate: the other 4 KPIs (term/health adequacy,
+  savings rate, debt-to-income) have no v1-sourced good/bad thresholds,
+  and inventing them would be new, unreviewed advice-adjacent judgment —
+  see decisions/log.md's 2026-09-17 entry.

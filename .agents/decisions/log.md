@@ -7,13 +7,98 @@
   Confirmed applied via `prisma migrate status` ("Database schema is up
   to date"). Required being off the office Wi-Fi — see
   context/subsystem-notes.md's port-blocking gotcha.
-- **Pending**: `FundReference` needs an `aumCr` column (Task 5 needs it
-  for Section 5.2's AUM-descending sort — missed when Task 2 wrote the
-  schema) plus the claim-settlement columns from the Section 6.3
-  amendment below. Blocked on the office-Wi-Fi port issue as of
-  2026-09-16; not yet attempted since.
+- **Pending**: `prisma/schema.prisma` now has `FundReference.aumCr`,
+  `InsurancePlanReference.claimSettlementRatioPct`, and
+  `InsurancePlanReference.avgClaimSettlementDays` (added 2026-09-17, see
+  the same-day entry below), but the migration itself hasn't been created
+  or applied — blocked on the office-Wi-Fi port issue again today (`P1001`
+  on port 5432, same signature as 2026-09-16). Run
+  `npx prisma migrate dev --name add_aum_and_claim_settlement_columns`
+  then `npx prisma generate` once off that network, per
+  `docs/superpowers/plans/2026-09-17-onboarding-intake-and-dashboard.md`
+  Task 1.
 
 ## Decisions
+- **2026-09-17** | Built Tasks 3 (Screens 2-6), 6 (insurance matching), 7
+  (seed data, code only), and 8 (dashboard UI) from a written design spec
+  (`docs/superpowers/specs/2026-09-17-onboarding-intake-and-dashboard-design.md`)
+  and implementation plan
+  (`docs/superpowers/plans/2026-09-17-onboarding-intake-and-dashboard.md`) |
+  **why**: next items in the build order, bundled into one plan since the
+  dashboard can't render anything real without the intake wizard and its
+  prerequisites feeding it | **found while building this**: `.gitignore`
+  had bare `src`/`.agents` lines (from commit `ffb20fe`) silently
+  gitignoring all *new* files under those directories — already-tracked
+  files were unaffected, which is why it went unnoticed, but every file
+  in this session's build would have been invisible to git until fixed.
+  Fixed as the first step (commit `4160598`) | **assumptions made, not
+  from a v1 source**:
+  - Demo user identity (`src/lib/demo-user.ts`) is a cookie only, no
+    NextAuth involvement — per the design spec's Section 1 decision.
+    `getOrCreateDemoUser()` can't set the cookie when called from a
+    Server Component (Next.js restriction); documented as tech debt
+    rather than worked around, since the one caller affected
+    (`/dashboard` on a cookie-less first visit) redirects to `/onboarding`
+    immediately anyway.
+  - KPI dashboard cards (`src/app/dashboard/KpiCard.tsx`) render as
+    single-hue ring meters using the app's own `--accent` token, not a
+    red/amber/green status color — deliberate, not an oversight. Only the
+    emergency-fund card shows a status label, reusing the already-computed
+    `emergencyFundStatus` enum; the other 4 KPIs (term/health adequacy,
+    savings rate, debt-to-income) have no v1-sourced good/bad thresholds
+    in `gap-analysis.ts`, and inventing UI-only thresholds for them would
+    be new advice-adjacent judgment never reviewed as business logic —
+    same caution as the "no ranking signal" rule already applied to
+    fund/insurance selection (see stack-and-rules.md Invariant 5).
+  - Seed data (`prisma/seed.ts`) uses real, well-known AMC/insurer/bank
+    names (HDFC, ICICI Prudential, SBI, Axis, Star Health, RBI for SGBs,
+    etc.) with illustrative NAV/AUM/expense-ratio/premium/claim figures,
+    each row commented as such — matches the design spec's Section 6
+    framing ("real names, illustrative figures"). External URLs point to
+    each institution's real homepage, not a guessed deep link to a
+    specific scheme page (avoids linking to a URL that was never
+    verified to exist).
+  **rejected**: running the seed against fabricated/placeholder company
+  names instead of real ones — the design spec explicitly calls for real,
+  recognizable names so the UI reads as realistic | **not yet done**: the
+  schema migration and the seed script itself haven't run (DB
+  unreachable, office-Wi-Fi port block — see Migration Index above); the
+  DB-dependent half of the manual E2E walkthrough (submit → dashboard
+  render, KPI value spot-check, `DEMO_MODE=false` check, external link
+  check) is correspondingly unverified — see the plan doc's Task 7 Step 7
+  for the exact steps once DB access is restored.
+- **2026-09-17** | Brainstormed (not yet spec'd) a new "SIP management"
+  feature — scope narrowed across several rounds of clarification, paused
+  before a design doc was written | **why**: user request, starting from
+  a vague "add SIP management" ask | **narrowed to, in order**:
+  1. Not manual record-keeping and not simulated buy/sell — user wants
+     their *real* SIP/holdings status shown, like Groww.
+  2. Not a live broker API integration (Groww etc. don't offer public
+     retail-aggregation APIs to third parties — infeasible for a personal
+     project) — instead, **CAS (Consolidated Account Statement) PDF
+     import**: user uploads their real CAMS/KFintech/NSDL statement, app
+     parses it.
+  3. **View-only**: CAS is the single source of truth, re-uploaded to
+     refresh; no manual add/edit/buy/sell on top of it.
+  **explicitly rejected in this conversation**: manual SIP entry (all
+  variants), simulated paper-trading buy/sell, live broker/API
+  integration, hybrid CAS+manual overlay.
+  **not yet decided — picking back up later**: how to handle CAS format
+  variety across RTAs (CAMS/KFintech/NSDL each lay out statements
+  differently). Two options were on the table when paused: (a) support
+  only CAMS "detailed" CAS with a clear error for other formats
+  (narrower, safer — matches this project's existing "curated, not
+  universal" pattern), or (b) best-effort parsing across all three
+  (more useful, higher risk of silently-wrong numbers in a finance app).
+  **not yet done**: no data model, no design doc, no code — this is pure
+  scope-narrowing, next step is finishing the brainstorming session
+  (parser scope question) before writing
+  `docs/superpowers/specs/YYYY-MM-DD-sip-management-design.md` and
+  handing off to writing-plans. Also unaddressed: CAS PDFs are
+  password-protected with sensitive financial PII (every AMC holding
+  across a person's whole portfolio) — password/file handling (never
+  persist either) needs to be part of that design, tied to the same DPDP
+  consent pattern already used for `FinancialProfile`/`InsuranceProfile`.
 - **2026-09-16** | Built the allocation engine (`src/lib/allocation.ts`,
   TDD, 12 passing Vitest tests) covering Section 5.1 (age-based base
   equity, risk-tolerance scaling, short-horizon shift) and 5.2's fund
