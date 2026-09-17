@@ -1,6 +1,23 @@
 # Active Roadmap & Technical Debt
 
-## Backlog
+## Python/FastAPI + React Rewrite (active — supersedes the Next.js stack below)
+Full rewrite per `docs/superpowers/specs/2026-09-17-python-fastapi-react-rewrite-design.md`
+and `docs/superpowers/plans/2026-09-17-python-fastapi-react-rewrite.md` —
+see decisions/log.md's 2026-09-17 entry for the why/scope. Status:
+
+| Tasks | Area | Status |
+|---|---|---|
+| 1-9 | Backend (`backend/`): FastAPI scaffold, SQLAlchemy models, gap-analysis/allocation/insurance-matching engines, demo-user cookie, onboarding + dashboard routers, seed script | **Done** — 42 pytest tests passing; verified end-to-end against the live Supabase DB via curl (submit → compute → persist → dashboard fetch, including the `DEMO_MODE=false` compliance gate) |
+| 10-15 | Frontend (`frontend/`): Vite/React (JS) scaffold, app shell, disclaimer gate, onboarding wizard, dashboard + cards | **Done** — 12 Vitest tests passing; disclaimer gate → 5-step wizard → review screen verified live via Playwright (₹-formatted review, inline validation blocking, Back/Next state preserved) through to a successful submit |
+| 16 | Manual parity verification (submit → dashboard render with `DEMO_MODE` toggled, browser devtools cookie check) + retire `src/`/`prisma/` | **Blocked** — Supabase's raw Postgres ports (5432/6543) intermittently unreachable from this session's networks (same office-Wi-Fi pattern as `subsystem-notes.md`, confirmed to also affect at least one hotspot tried). HTTPS/443 being reachable does **not** mean these ports are — they're a different protocol/port pair entirely, not proxied by whatever's blocking web traffic. Resume from the onboarding-submit step of the plan's Task 16 once on a network where `nc`/`/dev/tcp` to `aws-0-ap-south-1.pooler.supabase.com:6543` succeeds. Both dev servers (`uvicorn app.main:app --port 8000`, `npm run dev` in `frontend/`) are otherwise ready to go |
+
+**Until Task 16's cutover step runs**, the old Next.js/Prisma stack
+(`src/`, `prisma/`) stays in place untouched — don't delete it early even
+though the Python stack is functionally complete. See
+subsystem-notes.md's "Two DB-migration tools" entry before running
+`prisma migrate dev` against this DB in the meantime.
+
+## Backlog (original Next.js/Prisma stack — being replaced above)
 Build order per implementationplanv2.md Section 7. Status as of 2026-09-17:
 
 | # | Task | Status |

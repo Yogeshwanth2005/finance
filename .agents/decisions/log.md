@@ -7,18 +7,56 @@
   Confirmed applied via `prisma migrate status` ("Database schema is up
   to date"). Required being off the office Wi-Fi — see
   context/subsystem-notes.md's port-blocking gotcha.
-- **Pending**: `prisma/schema.prisma` now has `FundReference.aumCr`,
+- **Resolved, but not via Prisma**: `FundReference.aumCr`,
   `InsurancePlanReference.claimSettlementRatioPct`, and
-  `InsurancePlanReference.avgClaimSettlementDays` (added 2026-09-17, see
-  the same-day entry below), but the migration itself hasn't been created
-  or applied — blocked on the office-Wi-Fi port issue again today (`P1001`
-  on port 5432, same signature as 2026-09-16). Run
-  `npx prisma migrate dev --name add_aum_and_claim_settlement_columns`
-  then `npx prisma generate` once off that network, per
-  `docs/superpowers/plans/2026-09-17-onboarding-intake-and-dashboard.md`
-  Task 1.
+  `InsurancePlanReference.avgClaimSettlementDays` were applied to the live
+  DB 2026-09-17 via a hand-trimmed **Alembic** migration
+  (`backend/alembic/versions/6eed1f0685fe_...py`, part of the Python
+  rewrite below), not `npx prisma migrate dev`. `prisma/schema.prisma`
+  still declares these columns with no corresponding Prisma migration
+  file — if the TS stack is used again before it's retired, `prisma
+  migrate dev` will see this as drift. See
+  `context/subsystem-notes.md`'s "Two DB-migration tools" entry before
+  touching Prisma migrations on this DB again.
 
 ## Decisions
+- **2026-09-17** | Full rewrite of the app from Next.js/React/Prisma to
+  **FastAPI (Python) backend + Vite/React (plain JavaScript, no
+  TypeScript) frontend**, per a written design spec
+  (`docs/superpowers/specs/2026-09-17-python-fastapi-react-rewrite-design.md`)
+  and 16-task implementation plan
+  (`docs/superpowers/plans/2026-09-17-python-fastapi-react-rewrite.md`) |
+  **why**: explicit user request — no TypeScript anywhere, Python on the
+  backend, React with plain JS/HTML/CSS on the frontend | **scope**:
+  reproduces the existing feature set 1:1 (disclaimer gate, 5-step
+  onboarding wizard, gap-analysis/allocation/insurance-matching engines,
+  dashboard KPIs/fund/insurance cards) against the *same* Supabase
+  Postgres database — not a redesign of business logic |
+  **status**: backend (`backend/`, Tasks 1-9) fully built, 42 pytest tests
+  passing, and verified end-to-end against the live DB via curl (submit →
+  compute → persist → dashboard fetch → `DEMO_MODE=false` compliance gate
+  all confirmed with real data). Frontend (`frontend/`, Tasks 10-15) fully
+  built, 12 Vitest tests passing, and the disclaimer gate → 5-step wizard
+  → review screen verified live via Playwright through to a successful
+  submit (₹-formatted review values, inline validation blocking bad
+  input, Back/Next state preservation). Task 16 (final live browser
+  walkthrough of submit → dashboard render with `DEMO_MODE` toggled, and
+  retiring `src/`/`prisma/`) is **not done** — see Known Tech Debt below |
+  **two real bugs found only by testing against the live DB**, both fixed
+  and documented in `context/subsystem-notes.md`: psycopg3 rejecting
+  Prisma's `pgbouncer=true` URL param, and Prisma's `@updatedAt` having no
+  DB-level default (SQLAlchemy's `server_default` silently produced NULL
+  inserts) | **also surfaced**: `_prisma_migrations`'s counterpart problem
+  — the pending `aumCr`/`claimSettlementRatioPct`/`avgClaimSettlementDays`
+  migration (see Migration Index above) got applied via Alembic instead
+  of Prisma, since the Python rewrite needed it working; that's now a
+  cross-stack drift risk documented in subsystem-notes.md | **rejected**:
+  a same-origin/monolith deployment (FastAPI serving the built React
+  static files) — chose separate deploys (Render for the API,
+  Vercel/Netlify for the static frontend) instead, deferred to the deploy
+  task same as the original stack's Vercel deploy was | **not yet
+  decided**: real hosting configuration (deferred, matches how the
+  original backlog already deferred deploy specifics).
 - **2026-09-17** | Built Tasks 3 (Screens 2-6), 6 (insurance matching), 7
   (seed data, code only), and 8 (dashboard UI) from a written design spec
   (`docs/superpowers/specs/2026-09-17-onboarding-intake-and-dashboard-design.md`)

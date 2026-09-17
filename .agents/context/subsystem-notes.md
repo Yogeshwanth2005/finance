@@ -36,6 +36,61 @@ explicitly deferred to deploy time (see the file's own comment). Don't
 "fix" this by wiring up fake credential validation; it needs a real
 provider decision first.
 
+## Python backend (`backend/app/db.py`, `backend/app/models.py`) — SQLAlchemy against the same Supabase DB as Prisma
+Three gotchas hit while building the parallel FastAPI/SQLAlchemy stack
+(`docs/superpowers/plans/2026-09-17-python-fastapi-react-rewrite.md`),
+none obvious from either SQLAlchemy's or FastAPI's docs:
+- **psycopg3 rejects Prisma's `pgbouncer=true` query param.** The pooled
+  `DATABASE_URL` has `?pgbouncer=true` (a Prisma/asyncpg-side hint for
+  Supabase's transaction-mode pooler). psycopg3 passes unrecognized query
+  params straight to libpq, which errors with `invalid connection option
+  "pgbouncer"`. `db.py`'s `_to_psycopg_url()` strips it — `NullPool` +
+  `connect_args={"prepare_threshold": None}` already give the same
+  "don't rely on server-side prepared statements/pool state" behavior
+  that flag exists for on the Prisma/asyncpg side.
+- **Prisma's `@updatedAt` has no DB-level default — unlike
+  `@default(now())`.** `createdAt`/`computedAt`/`lastSyncedAt` columns
+  (`@default(now())`) really do have a Postgres `DEFAULT
+  CURRENT_TIMESTAMP` — confirmed via `alembic revision --autogenerate`,
+  which showed `existing_server_default` for those but not for
+  `updatedAt`. Prisma manages `@updatedAt` entirely client-side (every
+  write it issues includes the value). A SQLAlchemy model using
+  `server_default=func.now()` for `updatedAt` silently omits the column
+  from its `INSERT`, and Postgres NOT-NULLs the insert. Fix: Python-side
+  `default=`/`onupdate=` (a plain callable), not `server_default=`. Any
+  new Prisma-carried-over model must use this pattern for every
+  `@updatedAt` field, never `server_default`.
+- **A masked backend 500 shows up in the browser as a CORS error.**
+  Starlette's `CORSMiddleware` never gets to attach
+  `Access-Control-Allow-Origin` to a response that came from an
+  *unhandled* exception (the ASGI server's generic 500 response bypasses
+  it). The browser then reports "blocked by CORS policy" even though
+  CORS config is correct — confirmed by curling the same endpoint with an
+  `Origin` header: preflight `OPTIONS` returns full CORS headers, but the
+  real `POST` returns a bare 500 with none. **When a fetch that used to
+  work suddenly "fails CORS," check the backend's actual response status
+  and server-side traceback before touching CORS config at all.**
+
+## Two DB-migration tools now point at the same Supabase database
+As of the Python/React rewrite, this project has two independent
+migration tools that have both touched the same live schema:
+Prisma (`prisma/schema.prisma` + `prisma migrate`, the original TS
+stack) and Alembic (`backend/alembic/`, the new FastAPI stack). The
+`FundReference.aumCr` / `InsurancePlanReference.claimSettlementRatioPct`
+/ `avgClaimSettlementDays` columns that Prisma's schema declared but
+never migrated (see the "Pending" migration note in decisions/log.md's
+2026-09-17 entry) were applied via a **hand-trimmed Alembic migration**
+(`backend/alembic/versions/6eed1f0685fe_...py`), not `prisma migrate
+dev`. Prisma's own `_prisma_migrations` bookkeeping table was
+deliberately left untouched. **Consequence: if the old TS stack is used
+again before Task 16's cutover, running `prisma migrate dev` will detect
+schema drift** (schema.prisma declares these columns; Prisma's migration
+history has no migration that added them) and will likely fail or
+prompt confusingly, since the columns already exist physically. Don't
+run `prisma migrate dev` against this database without reconciling that
+first — either accept Prisma's drift-resolution flow explicitly, or
+retire the Prisma stack entirely per Task 16 before touching it again.
+
 ## Fund/Insurance reference data (Sections 5.2, 6.2, 6.3 — not yet built)
 This is the most compliance-sensitive part of the app. Two traps once
 it's implemented:
