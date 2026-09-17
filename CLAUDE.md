@@ -28,3 +28,10 @@ To prevent context dilution, general invariants and rules are split into modular
 5.  **Subsystem Notes & Load-Bearing Gotchas**:
     *   Location: `.agents/context/subsystem-notes.md`
     *   Read when: Editing a specific subsystem — holds the *why* and traps the code/wiki can't.
+
+## After Any Change
+The low-context lookup above only works if `.agents/` stays current. After
+finishing a task, feature, or bugfix — before ending your turn — follow
+`.claude/commands/second-brain-close.md` to sync `active-backlog.md` and
+`decisions/log.md` with what changed. Do this automatically; don't wait
+for the user to ask or to type `/second-brain-close`.
