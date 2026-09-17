@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone as tz
 
 from sqlalchemy import (
     String, Integer, Numeric, DateTime, Date, ForeignKey, JSON, Index,
@@ -13,6 +13,15 @@ from app.db import Base
 
 def _new_id() -> str:
     return str(uuid.uuid4())
+
+
+# Prisma's @updatedAt is client-managed, not a DB-level default/trigger —
+# unlike @default(now()) columns (createdAt, computedAt, lastSyncedAt),
+# which the live schema does give a real Postgres DEFAULT CURRENT_TIMESTAMP.
+# A server_default here would leave the column NULL on insert since no
+# such DB default actually exists for these three columns.
+def _now() -> datetime:
+    return datetime.now(tz.utc)
 
 
 RiskTolerance = ENUM(
@@ -41,7 +50,7 @@ class User(Base):
     name: Mapped[str | None] = mapped_column("name", String, nullable=True)
     hashedPassword: Mapped[str | None] = mapped_column("hashedPassword", String, nullable=True)
     createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class FinancialProfile(Base):
@@ -58,7 +67,7 @@ class FinancialProfile(Base):
     investmentHorizonYears: Mapped[int] = mapped_column("investmentHorizonYears", Integer)
     consentGivenAt: Mapped[datetime | None] = mapped_column("consentGivenAt", DateTime(timezone=True), nullable=True)
     createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), default=_now, onupdate=_now)
 
     existingDebts: Mapped[list["ExistingDebt"]] = relationship(back_populates="financialProfile", cascade="all, delete-orphan")
 
@@ -87,7 +96,7 @@ class InsuranceProfile(Base):
     employerHealthCoverAmount: Mapped[float] = mapped_column("employerHealthCoverAmount", Numeric(14, 2), default=0)
     consentGivenAt: Mapped[datetime | None] = mapped_column("consentGivenAt", DateTime(timezone=True), nullable=True)
     createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
-    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class AllocationResult(Base):
