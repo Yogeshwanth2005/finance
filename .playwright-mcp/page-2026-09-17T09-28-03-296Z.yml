@@ -1,0 +1,33 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - paragraph [ref=e4]: fin — profile (1 of 5)
+      - heading "Personal basics" [level=1] [ref=e5]
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - text: Age
+          - spinbutton "Age Enter an age between 18 and 100." [active] [ref=e38]
+          - paragraph [ref=e39]: Enter an age between 18 and 100.
+        - generic [ref=e11]:
+          - text: Number of dependents
+          - spinbutton "Number of dependents" [ref=e13]: "0"
+        - generic [ref=e14]:
+          - text: Risk tolerance
+          - generic [ref=e16]:
+            - generic [ref=e17]:
+              - radio "Risk tolerance conservative moderate aggressive" [ref=e18]
+              - text: conservative
+            - generic [ref=e19]:
+              - radio "moderate" [checked] [ref=e20]
+              - text: moderate
+            - generic [ref=e21]:
+              - radio "aggressive" [ref=e22]
+              - text: aggressive
+        - generic [ref=e23]:
+          - text: Investment horizon (years)
+          - spinbutton "Investment horizon (years) Enter at least 1 year." [ref=e40]
+          - paragraph [ref=e41]: Enter at least 1 year.
+      - button "Next" [ref=e27]
+  - contentinfo [ref=e28]: This tool provides educational guidance only and is not personalized financial or insurance advice. Fund and insurance plan examples shown are illustrative only — this is a demo project, not a live service.
+  - button "Open Next.js Dev Tools" [ref=e34] [cursor=pointer]
+  - alert [ref=e42]
