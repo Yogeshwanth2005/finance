@@ -37,6 +37,15 @@ yarn-error.log*
 # vercel
 .vercel
 
+# python (backend/)
+__pycache__/
+*.pyc
+backend/.venv/
+
+# vite (frontend/)
+frontend/node_modules/
+frontend/dist/
+
 # graphify (generated code-graph index, rebuild with /graphify --wiki)
 /graphify-out/
 
