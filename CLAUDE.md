@@ -1,6 +1,6 @@
 # Fin — Personal Finance Educational Demo (v2)
 
-Next.js + Prisma app implementing `implementationplanv2.md` — a
+FastAPI + React app implementing `implementationplanv2.md` — a
 deterministic, no-ML financial gap-analysis/allocation tool built as a
 personal/portfolio demo (not a live financial or insurance service).
 

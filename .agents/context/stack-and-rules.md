@@ -1,66 +1,36 @@
 # Invariants, Tech Stack & File Map
 
 ## Tech Stack
-- Frontend: Next.js 16 (App Router) + React 19 + Tailwind CSS 4
-- Backend: Next.js API routes (same app, no separate server)
-- Database: PostgreSQL via **Supabase**, accessed via Prisma ORM 7.10.0
-  through the `@prisma/adapter-pg` driver adapter
-- Auth: NextAuth v4, credentials provider (currently a stub — see
-  subsystem-notes.md)
-- Testing: Vitest (`npm test`) — added 2026-09-16 for the gap-analysis
-  engine's pure functions; not wired into a CI step yet
-- Hosting target: Vercel
-- No ML libraries, no LLM API calls anywhere in the app — every
-  calculation is deterministic (implementationplanv2.md Section 1)
+- Frontend: Vite + React 18 + Tailwind CSS 4 (`frontend/src/`)
+- Backend: Python 3.12 + FastAPI + SQLAlchemy 2.0 (`backend/app/`)
+- Database: PostgreSQL via **Supabase**, with Alembic migrations (`backend/alembic/`) and SQLite support for offline dev/tests
+- Auth / Session: Demo user session via `fin_demo_user_id` cookie (HttpOnly, SameSite=Lax)
+- Testing: `pytest` for backend (42 tests), `vitest` for frontend (12 tests)
+- No ML libraries, no LLM API calls anywhere in the core engines — every financial calculation is deterministic (implementationplanv2.md Section 1)
 
 ## Hard Invariants
-1. **Prisma 7 driver-adapter requirement**: `datasource.url` must NOT be
-   added back to `prisma/schema.prisma` — Prisma 7 removed that path.
-   Connection config lives in `prisma.config.ts`; `PrismaClient` must be
-   constructed with the `PrismaPg` adapter (`src/lib/db.ts`). Keep `prisma`
-   and `@prisma/client` pinned to the same version — a version mismatch
-   (8.0.0-rc.13 vs 7.10.0) previously broke client generation. See
-   decisions/log.md.
-2. **Two Supabase connection strings, not one**: `DATABASE_URL` (pooled,
-   Supavisor transaction mode, port 6543) is what the running app uses via
-   the adapter in `src/lib/db.ts`. `DIRECT_URL` (direct, port 5432) is what
-   `prisma.config.ts` uses for `prisma migrate`/introspection — the pooler
-   doesn't support the DDL + shadow-database operations migrate needs.
-   Never point `prisma.config.ts`'s datasource at the pooled URL.
-3. **No ML/LLM calls**: gap-analysis, allocation, and fund/insurance
-   matching logic must stay pure/deterministic functions.
-4. **`DEMO_MODE` gate** (`src/lib/config.ts`): Sections 5.2/6.2/6.3
-   (named fund and insurance plan examples) must stay behind this flag.
-   It exists because showing named financial products without SEBI RIA /
-   IRDAI web-aggregator licensing is only legal while this stays an
-   unpublished demo/portfolio project. Do not remove or bypass this gate
-   without re-reading implementationplanv2.md Section 0.2 first.
-5. Fund/insurance example *selection* must stay rule-based (sorted by
-   AUM / sum-assured proximity) — never a ranked "best pick," to avoid
-   crossing into personalized advice. *Presentation* may compare
-   selected plans side by side (amended 2026-09-16, Section 6.3) as long
-   as every field shown is a plain fact — no ranking, no "best value"
-   badge, no score/star rating, no sort implying one plan is better.
-   Selection logic and this display rule are separate; don't let a
-   ranking signal leak into the comparison layout.
+1. **Quoted Column Names in SQLAlchemy**: Postgres schema columns use camelCase (`"monthlyIncome"`, `"emergencyFundMonths"`). All SQLAlchemy models in `backend/app/models.py` map to exact quoted names matching the PostgreSQL database schema.
+2. **`DEMO_MODE` Regulatory Compliance Gate** (`backend/app/config.py`): Sections 5.2/6.2/6.3 (named fund and insurance plan examples) must stay strictly behind this boolean flag. Showing named financial products without SEBI RIA / IRDAI web-aggregator licensing is only permitted while this stays a private portfolio/educational demo. When `DEMO_MODE=false`, named fund and insurance examples are completely omitted from both the raw `GET /api/dashboard` JSON response and UI rendering.
+3. **No ML/LLM Calls in Core Engine**: `gap_analysis.py`, `allocation.py`, and `insurance_matching.py` logic are pure, deterministic functions.
+4. **Rule-Based Reference Matching**: Fund/insurance example selection is rule-based (sorted by AUM / sum-assured proximity) — never a ranked "best pick" or subjective score, to avoid crossing into personalized advice liabilities under SEBI/IRDAI regulations.
 
 ## File Map
-- `src/lib/config.ts` — all editable tunable constants (plan Section 8)
-- `src/lib/db.ts` — Prisma client singleton + `PrismaPg` adapter wiring
-- `src/lib/gap-analysis.ts` (+ `.test.ts`) — Section 4.1-4.5 pure
-  functions (`computeGapAnalysis` is the composed entry point); not yet
-  wired to an API route or the DB
-- `src/lib/auth.ts`, `src/app/api/auth/[...nextauth]/route.ts` — NextAuth
-  config (credentials provider is currently a non-functional stub)
-- `src/components/DisclaimerBanner.tsx` — persistent disclaimer banner
-  (plan Section 6.4)
-- `src/app/onboarding/page.tsx` — Screen 1, the two-part disclaimer gate
-  (plan Section 3); `src/app/onboarding/profile/page.tsx` is an unbuilt
-  placeholder for Screens 2-6
-- `prisma/schema.prisma` — all 8 models, migrated (Task 2 done
-  2026-09-16); the 4 carried-over-from-v1 models were reconstructed from
-  context, not a real v1 source — see decisions/log.md
-- `prisma.config.ts` — Prisma 7 connection config (replaces
-  `datasource.url`)
-- `implementationplanv2.md` — full spec; source of truth for all business
-  logic, config defaults, and the regulatory reasoning behind `DEMO_MODE`
+- `backend/app/config.py` — editable tunable constants & `DEMO_MODE` gate
+- `backend/app/db.py` — SQLAlchemy async engine and session dependency
+- `backend/app/models.py` — SQLAlchemy ORM models matching database schema
+- `backend/app/demo_user.py` — demo session tracking via `fin_demo_user_id` cookie
+- `backend/app/services/gap_analysis.py` (+ `tests/test_gap_analysis.py`) — deterministic gap analysis engine
+- `backend/app/services/allocation.py` (+ `tests/test_allocation.py`) — asset allocation engine
+- `backend/app/services/insurance_matching.py` (+ `tests/test_insurance_matching.py`) — insurance reference matcher
+- `backend/app/routers/onboarding.py` — `POST /api/onboarding/submit` endpoint
+- `backend/app/routers/dashboard.py` — `GET /api/dashboard` endpoint
+- `backend/app/seed.py` — AMFI mutual funds and insurance reference seeder
+- `frontend/src/App.jsx` — React Router SPA shell
+- `frontend/src/pages/Home.jsx` — landing page
+- `frontend/src/pages/Onboarding.jsx` — disclaimer gate (Section 3)
+- `frontend/src/pages/onboarding/OnboardingWizard.jsx` — 5-step onboarding intake wizard
+- `frontend/src/pages/onboarding/screens.jsx` — individual wizard step forms and validators
+- `frontend/src/pages/Dashboard.jsx` — dashboard rendering 5 KPI ring meters, asset allocation snapshot, and `DEMO_MODE`-gated comparison cards
+- `frontend/src/components/KpiCard.jsx`, `FundCard.jsx`, `InsuranceCard.jsx` — dashboard card components
+- `frontend/src/lib/format.js` — Indian numbering / Rupee currency formatting utilities
+- `implementationplanv2.md` — full product spec and regulatory reasoning

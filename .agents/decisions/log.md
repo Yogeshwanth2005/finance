@@ -20,6 +20,48 @@
   touching Prisma migrations on this DB again.
 
 ## Decisions
+- **2026-09-19** | Completed full stack cutover from Next.js 15/Prisma/TypeScript to Python 3.12/FastAPI/SQLAlchemy 2.0/Alembic + Vite/React 18 (Task 16) | **why**: Architectural rewrite to a decoupled Python FastAPI backend and Vite React SPA frontend per `docs/superpowers/specs/2026-09-17-python-fastapi-react-rewrite-design.md` and `docs/superpowers/plans/2026-09-17-python-fastapi-react-rewrite.md` | **verification**: 42 backend pytest tests passing, 12 frontend Vitest tests passing, production build verified, `DEMO_MODE` regulatory gate fully operational | **retired**: Removed legacy Next.js routes (`src/`), Prisma schemas/migrations (`prisma/`), and TypeScript build configs (`next.config.ts`, `tsconfig.json`, `eslint.config.mjs`).
+- **2026-09-18** | Brainstormed (not spec'd) two proposed features —
+  **insurance-plan document Q&A chatbot** and **SIP-ranking display** —
+  narrowed across several rounds to stay inside the existing
+  regulatory-gate boundary rather than reopening it | **why**: user idea,
+  "insurance docs can't be fetched via API, so build a RAG chatbot over
+  the policy PDFs" | **insurance chatbot narrowed to**: plan-fact lookup
+  only (coverage, exclusions, waiting periods, claim process), grounded
+  in the source document with citations — **explicitly not** plan
+  comparison or "which plan should I choose," which the user confirmed
+  themselves unprompted ("they wont be asking suggestions... it just
+  clears doubts... not like which to choose"). Needs a runtime refusal
+  path for recommendation-shaped questions, not just a scope note on
+  paper. See backlog entry for the open design questions (PDF sourcing,
+  schema, provider) | **also explored and rejected, in order**: (1) AI
+  freely suggesting a plan from income/family inputs with a disclaimer —
+  rejected because a disclaimer fixes legal exposure, not the
+  hallucination/inconsistency risk of an ungrounded LLM judgment call;
+  (2) a "reader extracts facts, then deterministic rules pick the best
+  plan, AI explains the pick" hybrid — this looked safer since the
+  picker is plain rules, not AI, but on cross-check against
+  `stack-and-rules.md` Invariant 5 it's still a "ranked best pick" by
+  definition, just computed differently, so it was rejected too; (3)
+  ranking the *fund catalog* (not the user's own holdings) by XIRR, then
+  by 1yr/3yr/5yr returns, to surface a "top funds" list — same rejection
+  each time: sorting investable options by past performance and
+  presenting the order **is** the recommendation, regardless of whether
+  a human, a rule, or an AI produced the ranking, and this is exactly the
+  kind of content SEBI requires "past performance is not indicative of
+  future returns" disclosures for | **landed on, both confirmed safe**:
+  (a) showing returns/facts as an **unsorted** table (user can eyeball
+  and rank mentally themselves — matches the existing insurance
+  comparison-table pattern, Invariant 5 stays intact); (b) showing a
+  **user's own SIP holdings'** performance since that specific SIP's
+  start date (computed from the real CAS transaction history — XIRR
+  applied to the user's own past, not to rank a catalog for a future
+  decision) — this was the resolving reframe: "since I invested" is a
+  fact about the user's own account, not a recommendation about what to
+  buy, so it doesn't touch Invariant 5 at all | **not yet done**: neither
+  feature has a design doc, schema, or code — this stays at the
+  brainstorming/backlog stage, see `projects/active-backlog.md`'s
+  "Proposed / Not Yet Scoped" section.
 - **2026-09-17** | Full rewrite of the app from Next.js/React/Prisma to
   **FastAPI (Python) backend + Vite/React (plain JavaScript, no
   TypeScript) frontend**, per a written design spec
