@@ -1,0 +1,189 @@
+{
+  "app_identity": {
+    "name": "SurakshaCFO",
+    "tagline": "India's First AI Family CFO & Intelligent Insurance Protection Engine",
+    "context": "India / INR Financial Ecosystem (Term Insurance, Health Floater, 6x Emergency Fund, Mutual Fund Surplus Allocation)",
+    "target_audience": "Indian working professionals, MNC employees, business owners, and freelancers planning long-term security for their families."
+  },
+  "design_archetype": {
+    "name": "Swiss-Warm Executive & Family Trust Minimalist",
+    "description": "Combines the structured precision of modern Swiss financial dashboards with warm, inviting family-centric tones. Clean, crisp 1px borders, high-density metric callouts, and tabular numeric typography.",
+    "theme_strategy": "Dual-mode support with warm off-white canvas for light mode (#F9F8F5) and deep obsidian graphite (#0F1115) for dark mode. High contrast for instant scanability."
+  },
+  "color_palette": {
+    "light_mode": {
+      "background": "#F8F7F4",
+      "surface": "#FFFFFF",
+      "surface_subtle": "#F1EFE9",
+      "border": "#E4E1D8",
+      "border_strong": "#C8C4B7",
+      "text_primary": "#17181C",
+      "text_secondary": "#5C5F66",
+      "text_muted": "#8A8F99",
+      "brand_primary": "#0D7A5F",
+      "brand_primary_hover": "#0A624C",
+      "brand_accent": "#D97706",
+      "brand_warning": "#C2410C",
+      "brand_info": "#2563EB"
+    },
+    "dark_mode": {
+      "background": "#0F1115",
+      "surface": "#16191F",
+      "surface_subtle": "#1E232B",
+      "border": "#2A303C",
+      "border_strong": "#3A4252",
+      "text_primary": "#F3F4F6",
+      "text_secondary": "#9CA3AF",
+      "text_muted": "#6B7280",
+      "brand_primary": "#10B981",
+      "brand_primary_hover": "#059669",
+      "brand_accent": "#F59E0B",
+      "brand_warning": "#EF4444",
+      "brand_info": "#3B82F6"
+    }
+  },
+  "typography": {
+    "heading_font": "Plus Jakarta Sans, sans-serif",
+    "body_font": "IBM Plex Sans, sans-serif",
+    "mono_font": "IBM Plex Mono, monospace",
+    "scale": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight",
+      "h3": "text-lg sm:text-xl font-medium tracking-tight",
+      "h4": "text-base font-semibold",
+      "body": "text-sm sm:text-base font-normal leading-relaxed",
+      "caption": "text-xs font-medium tracking-wider uppercase",
+      "currency_large": "font-mono text-2xl sm:text-3xl lg:text-4xl font-bold tabular-nums"
+    }
+  },
+  "layout_and_spacing": {
+    "container_max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "bento_grid_system": {
+      "hero_span": "col-span-12 lg:col-span-8",
+      "sidebar_span": "col-span-12 lg:col-span-4",
+      "metric_card_span": "col-span-12 sm:col-span-6 lg:col-span-3",
+      "chart_card_span": "col-span-12 lg:col-span-6"
+    },
+    "card_padding": "p-5 sm:p-6 lg:p-8",
+    "gap_system": "gap-4 sm:gap-6 lg:gap-8"
+  },
+  "key_features_and_components": {
+    "header_navigation": {
+      "description": "Sticky blurred header with brand logo, stage progress tracker, quick action buttons, and INR currency badge.",
+      "components": ["LogoBadge", "NavLinks", "ProfileCompletionPill", "ThemeToggle", "DataResetButton"]
+    },
+    "profile_wizard_form": {
+      "description": "Multi-step interactive form collecting family demographic details, income structure, liabilities, and current coverage.",
+      "steps": [
+        {
+          "step_id": 1,
+          "title": "Family & Basic Profile",
+          "fields": ["Full Name", "Age & DOB", "City Tier (Tier 1/2/3)", "Marital Status", "Number of Dependents (Kids, Parents)", "Self/Spouse Age"]
+        },
+        {
+          "step_id": 2,
+          "title": "Income & Employment",
+          "fields": ["Employment Type (MNC Salaried, Business/Self-Employed, Freelancer)", "Gross Annual Income (₹)", "Spouse Annual Income (₹)", "Monthly Fixed Expenses (₹)", "Annual Bonuses/Variable (₹)"]
+        },
+        {
+          "step_id": 3,
+          "title": "Loans & Liabilities",
+          "fields": ["Home Loan Balance (₹)", "Car/Personal Loan Balance (₹)", "Monthly Total EMI (₹)", "Other Outstanding Debts (₹)"]
+        },
+        {
+          "step_id": 4,
+          "title": "Current Protection & Savings",
+          "fields": ["Current Health Cover (₹ Lakhs)", "Existing Term Insurance Cover (₹ Crores)", "Liquid Emergency Savings (₹)", "Current Investments (SIPs, FDs, Stocks)"]
+        }
+      ]
+    },
+    "cfo_analytics_dashboard": {
+      "description": "Comprehensive post-wizard dashboard displaying financial protection score, coverage gap analysis, emergency fund runway, and surplus flow.",
+      "sections": [
+        "Protection Score Ring & Risk Meter (0-100 score based on coverage vs liabilities)",
+        "Term Insurance Needs Analysis Card (Formula: [15x Annual Income + Total Loans - Existing Cover])",
+        "Health Insurance Floater Recommender Card (Formula: Base 10L-25L + Top-up based on Family size & City Tier)",
+        "6-Month Emergency Fund Shield Card (Goal vs Current savings gap)",
+        "Annual Financial Cashflow Waterfall (Income - Expenses - EMIs - Insurance Premiums = Investable Surplus)",
+        "Transparent Rule Calculation Drawer & Disclaimer Modal"
+      ]
+    },
+    "insurance_hub_and_comparison": {
+      "description": "Interactive showcase of recommended Indian Term & Health Insurance plans with side-by-side comparison matrix.",
+      "features": [
+        "Filter by Term vs Health Insurance",
+        "Claim Settlement Ratio (CSR) Badges (e.g., 99.2% CSR)",
+        "Custom annual premium estimates computed for user's age",
+        "Riders selector (Critical Illness, Accidental Disability, Waiver of Premium)",
+        "Plan Comparison Drawer for detailed side-by-side analysis"
+      ]
+    },
+    "rag_ai_cfo_chatbot": {
+      "description": "Context-aware AI Advisor floating widget and full tab that reads the user's saved family profile to answer complex insurance queries.",
+      "capabilities": [
+        "Pre-built prompt chips ('Why do I need ₹1.5 Cr Term plan?', 'HDFC Ergo vs Star Health comparison', 'Should I take critical illness rider?')",
+        "Real-time rule explanation citing Indian tax benefits (Section 80D, 80C)",
+        "Interactive scenario simulator ('What if my salary increases by 20%?')"
+      ]
+    },
+    "mutual_fund_surplus_allocator": {
+      "description": "Intelligent post-insurance investment direction engine.",
+      "allocation_logic": [
+        "Priority 1: Complete 6-Month Emergency Fund gap in liquid/overnight funds.",
+        "Priority 2: Pay Term + Health Insurance premiums.",
+        "Priority 3: Split remaining surplus into Nifty 50 Index Funds (50%), Flexi-Cap Funds (30%), and Mid-Cap Growth (20%)."
+      ]
+    }
+  },
+  "media_assets": {
+    "family_trust_images": [
+      {
+        "description": "Happy Indian family outdoors, representing protection and peace of mind",
+        "url": "https://images.unsplash.com/photo-1609253919256-74a3b8f1cd5e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwzfHxoYXBweSUyMGluZGlhbiUyMGZhbWlseSUyMHNtaWxlJTIwd2FybSUyMHRydXN0fGVufDB8fHx8MTc4OTg4MDk0MHww&ixlib=rb-4.1.0&q=85"
+      },
+      {
+        "description": "Smiling Indian father with children representing caring protection",
+        "url": "https://images.pexels.com/photos/13068718/pexels-photo-13068718.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      },
+      {
+        "description": "Warm family bonding scene for onboarding hero section",
+        "url": "https://images.unsplash.com/photo-1659352790654-058e9077a4f4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxoYXBweSUyMGluZGlhbiUyMGZhbWlseSUyMHNtaWxlJTIwd2FybSUyMHRydXN0fGVufDB8fHx8MTc4OTg4MDk0MHww&ixlib=rb-4.1.0&q=85"
+      }
+    ]
+  },
+  "testing_and_automation": {
+    "data_testid_convention": "kebab-case, role and entity based",
+    "required_test_ids": [
+      "header-brand-logo",
+      "nav-profile-wizard-link",
+      "nav-dashboard-link",
+      "nav-insurance-plans-link",
+      "nav-ai-chatbot-link",
+      "profile-wizard-step-container",
+      "wizard-step-1-next-button",
+      "wizard-step-2-next-button",
+      "wizard-step-3-next-button",
+      "wizard-submit-button",
+      "dashboard-protection-score-card",
+      "dashboard-term-gap-metric",
+      "dashboard-health-gap-metric",
+      "dashboard-emergency-fund-card",
+      "insurance-plan-card-term-1",
+      "insurance-plan-card-health-1",
+      "insurance-compare-button",
+      "rag-chatbot-input-field",
+      "rag-chatbot-send-button",
+      "rag-prompt-chip-1",
+      "mutual-fund-allocation-card"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Write code using React JavaScript (.js / .jsx) components matching existing frontend architecture.",
+    "Implement the multi-step profile wizard with clear progress indicators, validation, and local storage persistence so users don't lose data on refresh.",
+    "Calculate rule-based financial protection metrics accurately using Indian standard formulas (Term cover = 10-15x income + liabilities - existing cover; Health cover = 10L-25L floater + super topup; Emergency fund = 6x monthly expenses).",
+    "Display prominent disclaimers clearly marking the estimates as rule-based recommendations for educational purposes.",
+    "Ensure the dashboard gracefully handles empty/unsubmitted profiles by providing a pre-loaded sample benchmark profile toggle ('View Sample Family Profile').",
+    "Build a rich, context-aware RAG Chatbot UI with preset quick questions, message history, plan comparison generator, and typing indicator.",
+    "Include data-testid attributes on all interactive buttons, inputs, cards, and navigation links as outlined in the testing section."
+  ]
+}
