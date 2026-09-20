@@ -165,3 +165,54 @@ class InsurancePlanReference(Base):
     externalUrl: Mapped[str] = mapped_column("externalUrl", String)
     lastUpdatedAt: Mapped[datetime] = mapped_column("lastUpdatedAt", DateTime(timezone=True), server_default=func.now())
     sourceNote: Mapped[str] = mapped_column("sourceNote", String)
+
+
+class InsuranceDocument(Base):
+    __tablename__ = "insurance_documents"
+    __table_args__ = (
+        Index("ix_insurance_documents_status", "status"),
+        Index("ix_insurance_documents_planId", "planId"),
+    )
+
+    id: Mapped[str] = mapped_column("id", String, primary_key=True, default=_new_id)
+    planId: Mapped[str | None] = mapped_column("planId", String, ForeignKey("insurance_plan_reference.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column("title", String)
+    filename: Mapped[str] = mapped_column("filename", String)
+    sourceType: Mapped[str] = mapped_column("sourceType", String, default="pdf")
+    status: Mapped[str] = mapped_column("status", String, default="active")
+    totalChunks: Mapped[int] = mapped_column("totalChunks", Integer, default=0)
+    createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
+    updatedAt: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), default=_now, onupdate=_now)
+
+    chunks: Mapped[list["InsuranceDocumentChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+
+
+class InsuranceDocumentChunk(Base):
+    __tablename__ = "insurance_document_chunks"
+    __table_args__ = (
+        Index("ix_insurance_document_chunks_documentId", "documentId"),
+    )
+
+    id: Mapped[str] = mapped_column("id", String, primary_key=True, default=_new_id)
+    documentId: Mapped[str] = mapped_column("documentId", String, ForeignKey("insurance_documents.id", ondelete="CASCADE"))
+    chunkIndex: Mapped[int] = mapped_column("chunkIndex", Integer)
+    content: Mapped[str] = mapped_column("content", String)
+    embedding: Mapped[list] = mapped_column("embedding", JSON)
+    createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
+
+    document: Mapped["InsuranceDocument"] = relationship(back_populates="chunks")
+
+
+class InsuranceChatMessage(Base):
+    __tablename__ = "insurance_chat_messages"
+    __table_args__ = (
+        Index("ix_insurance_chat_messages_userId_createdAt", "userId", "createdAt"),
+    )
+
+    id: Mapped[str] = mapped_column("id", String, primary_key=True, default=_new_id)
+    userId: Mapped[str] = mapped_column("userId", String, ForeignKey("users.id", ondelete="CASCADE"))
+    role: Mapped[str] = mapped_column("role", String)
+    content: Mapped[str] = mapped_column("content", String)
+    sources: Mapped[list] = mapped_column("sources", JSON, default=list)
+    createdAt: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
+
