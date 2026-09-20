@@ -15,8 +15,8 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_supabase() -> Client:
-    \"\"\"
+    """
     FastAPI dependency that provides the Supabase REST client.
     This replaces the previous SQLAlchemy get_db dependency.
-    \"\"\"
+    """
     return supabase
