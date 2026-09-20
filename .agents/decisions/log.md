@@ -20,7 +20,9 @@
   touching Prisma migrations on this DB again.
 
 ## Decisions
+- **2026-09-20** | Promoted and integrated SurakshaCFO RAG document extraction, deterministic offline vector embeddings, regulatory guardrail refusal gate, and policy intelligence drawer into root Fin v2 architecture | **why**: User request to promote `finance/` features to root Fin application and integrate policy intelligence without compromising Fin's strict compliance invariants (Invariant 1: camelCase SQLAlchemy mappings; Invariant 2: `DEMO_MODE` gate; Invariant 3: deterministic financial calculations; Invariant 4: hard refusal gate for comparisons/recommendations) | **verification**: 52 backend pytest tests passing, 12 frontend Vitest tests passing, Alembic migration `a1f8c9e0d1b2` generated, specification preserved in `docs/SURAKSHACFO_SPEC.md` | **cleanup**: Ignored redundant staging files in `.gitignore` and updated second-brain state.
 - **2026-09-19** | Completed full stack cutover from Next.js 15/Prisma/TypeScript to Python 3.12/FastAPI/SQLAlchemy 2.0/Alembic + Vite/React 18 (Task 16) | **why**: Architectural rewrite to a decoupled Python FastAPI backend and Vite React SPA frontend per `docs/superpowers/specs/2026-09-17-python-fastapi-react-rewrite-design.md` and `docs/superpowers/plans/2026-09-17-python-fastapi-react-rewrite.md` | **verification**: 42 backend pytest tests passing, 12 frontend Vitest tests passing, production build verified, `DEMO_MODE` regulatory gate fully operational | **retired**: Removed legacy Next.js routes (`src/`), Prisma schemas/migrations (`prisma/`), and TypeScript build configs (`next.config.ts`, `tsconfig.json`, `eslint.config.mjs`).
+
 - **2026-09-18** | Brainstormed (not spec'd) two proposed features —
   **insurance-plan document Q&A chatbot** and **SIP-ranking display** —
   narrowed across several rounds to stay inside the existing

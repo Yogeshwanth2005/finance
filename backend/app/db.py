@@ -1,44 +1,22 @@
 import os
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
-
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import NullPool
+from supabase import create_client, Client
 
 load_dotenv()
 
+# Supabase REST Client Configuration
+SUPABASE_URL: str = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY: str = os.environ.get("SUPABASE_KEY", "")
 
-def _to_psycopg_url(raw_url: str) -> str:
-    """Rewrite a Prisma-style pooled connection string for psycopg3.
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
 
-    `pgbouncer=true` is a Prisma/asyncpg-side hint for Supabase's
-    transaction-mode pooler — psycopg3 passes unrecognized query params
-    straight to libpq, which rejects it as an invalid connection option.
-    NullPool + connect_args={"prepare_threshold": None} already give the
-    same "don't rely on server-side prepared statements/persistent pool
-    state" behavior that flag exists for, so it's safe to drop.
-    """
-    scheme, netloc, path, query, fragment = urlsplit(raw_url)
-    filtered_query = urlencode([(k, v) for k, v in parse_qsl(query) if k != "pgbouncer"])
-    return urlunsplit(("postgresql+psycopg", netloc, path, filtered_query, fragment))
+# Singleton client instance for HTTPS communication
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
-DATABASE_URL = _to_psycopg_url(os.environ["DATABASE_URL"])
-
-engine = create_engine(
-    DATABASE_URL,
-    poolclass=NullPool,
-    connect_args={"prepare_threshold": None},
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def get_supabase() -> Client:
+    \"\"\"
+    FastAPI dependency that provides the Supabase REST client.
+    This replaces the previous SQLAlchemy get_db dependency.
+    \"\"\"
+    return supabase

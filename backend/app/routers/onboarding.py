@@ -1,15 +1,14 @@
 from datetime import datetime, timezone
+from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import Session
+from supabase import Client
 
-from app.db import get_db
+from app.db import get_supabase
 from app.demo_user import get_or_create_demo_user
-from app.models import (
-    FinancialProfile, ExistingDebt, InsuranceProfile,
-    GapAnalysisResult, AllocationResult, User,
-)
+from app.models import User
+from app.mapping import get_table_name
 from app.services.gap_analysis import compute_gap_analysis
 from app.services.allocation import compute_allocation
 
@@ -35,7 +34,7 @@ class OnboardingSubmission(BaseModel):
     monthly_income: float = Field(alias="monthlyIncome")
     monthly_expenses: float = Field(alias="monthlyExpenses")
     current_savings: float = Field(alias="currentSavings")
-    debts: list[DebtIn] = []
+    debts: List[DebtIn] = []
     existing_term_cover_amount: float = Field(alias="existingTermCoverAmount")
     personal_health_cover_amount: float = Field(alias="personalHealthCoverAmount")
     employer_health_cover_amount: float = Field(alias="employerHealthCoverAmount")
@@ -45,47 +44,62 @@ class OnboardingSubmission(BaseModel):
 def submit_onboarding(
     payload: OnboardingSubmission,
     user: User = Depends(get_or_create_demo_user),
-    db: Session = Depends(get_db),
+    supabase: Client = Depends(get_supabase),
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).isoformat()
 
-    financial_profile = db.query(FinancialProfile).filter_by(userId=user.id).first()
-    if financial_profile is None:
-        financial_profile = FinancialProfile(userId=user.id)
-        db.add(financial_profile)
+    # 1. Handle Financial Profile (Upsert)
+    financial_profile_table = get_table_name("FinancialProfile")
+    profile_data = {
+        "userId": user.id,
+        "age": payload.age,
+        "dependentsCount": payload.dependents_count,
+        "monthlyIncome": payload.monthly_income,
+        "monthlyExpenses": payload.monthly_expenses,
+        "currentSavings": payload.current_savings,
+        "riskTolerance": payload.risk_tolerance,
+        "investmentHorizonYears": payload.investment_horizon_years,
+        "consentGivenAt": now,
+        "updatedAt": now,
+    }
 
-    financial_profile.age = payload.age
-    financial_profile.dependentsCount = payload.dependents_count
-    financial_profile.monthlyIncome = payload.monthly_income
-    financial_profile.monthlyExpenses = payload.monthly_expenses
-    financial_profile.currentSavings = payload.current_savings
-    financial_profile.riskTolerance = payload.risk_tolerance
-    financial_profile.investmentHorizonYears = payload.investment_horizon_years
-    financial_profile.consentGivenAt = now
-    db.flush()
+    # Upsert based on userId unique constraint
+    profile_res = supabase.table(financial_profile_table).upsert(profile_data, on_conflict="userId").execute()
+    financial_profile = profile_res.data[0] if profile_res.data else None
 
-    db.query(ExistingDebt).filter_by(financialProfileId=financial_profile.id).delete()
-    for debt in payload.debts:
-        db.add(ExistingDebt(
-            financialProfileId=financial_profile.id,
-            label=debt.label,
-            outstandingAmount=debt.outstanding_amount,
-            interestRatePct=debt.interest_rate_pct,
-            tenureMonths=debt.tenure_months,
-        ))
+    if not financial_profile:
+        raise HTTPException(status_code=500, detail="Failed to save financial profile")
 
-    insurance_profile = db.query(InsuranceProfile).filter_by(userId=user.id).first()
-    if insurance_profile is None:
-        insurance_profile = InsuranceProfile(userId=user.id)
-        db.add(insurance_profile)
+    # 2. Handle Existing Debts (Delete and Re-insert)
+    debt_table = get_table_name("ExistingDebt")
+    supabase.table(debt_table).delete().eq("financialProfileId", financial_profile["id"]).execute()
 
-    insurance_profile.existingTermCoverAmount = payload.existing_term_cover_amount
-    insurance_profile.personalHealthCoverAmount = payload.personal_health_cover_amount
-    insurance_profile.employerHealthCoverAmount = payload.employer_health_cover_amount
-    insurance_profile.consentGivenAt = now
+    debts_to_insert = [
+        {
+            "financialProfileId": financial_profile["id"],
+            "label": debt.label,
+            "outstandingAmount": debt.outstanding_amount,
+            "interestRatePct": debt.interest_rate_pct,
+            "tenureMonths": debt.tenure_months,
+        }
+        for debt in payload.debts
+    ]
+    if debts_to_insert:
+        supabase.table(debt_table).insert(debts_to_insert).execute()
 
-    db.commit()
+    # 3. Handle Insurance Profile (Upsert)
+    insurance_profile_table = get_table_name("InsuranceProfile")
+    insurance_data = {
+        "userId": user.id,
+        "existingTermCoverAmount": payload.existing_term_cover_amount,
+        "personalHealthCoverAmount": payload.personal_health_cover_amount,
+        "employerHealthCoverAmount": payload.employer_health_cover_amount,
+        "consentGivenAt": now,
+        "updatedAt": now,
+    }
+    supabase.table(insurance_profile_table).upsert(insurance_data, on_conflict="userId").execute()
 
+    # 4. Compute Results
     debts_for_engine = [
         {
             "id": f"pending-{i}",
@@ -112,26 +126,31 @@ def submit_onboarding(
         investment_horizon_years=payload.investment_horizon_years,
     )
 
-    db.add(GapAnalysisResult(
-        userId=user.id,
-        emergencyFundTarget=gap_analysis["emergency_fund_target"],
-        emergencyFundCurrent=gap_analysis["emergency_fund_current"],
-        emergencyFundStatus=gap_analysis["emergency_fund_status"],
-        debtPriorityOrder=gap_analysis["debt_priority_order"],
-        termCoverGap=gap_analysis["term_cover_gap"],
-        healthCoverGap=gap_analysis["health_cover_gap"],
-        emergencyFundCoveragePct=gap_analysis["emergency_fund_coverage_pct"],
-        termCoverAdequacyPct=gap_analysis["term_cover_adequacy_pct"],
-        healthCoverAdequacyPct=gap_analysis["health_cover_adequacy_pct"],
-        savingsRatePct=gap_analysis["savings_rate_pct"],
-        debtToIncomePct=gap_analysis["debt_to_income_pct"],
-    ))
-    db.add(AllocationResult(
-        userId=user.id,
-        equityPct=allocation["equity_pct"],
-        debtPct=allocation["debt_pct"],
-        goldPct=allocation["gold_pct"],
-    ))
-    db.commit()
+    # 5. Store Results
+    gap_table = get_table_name("GapAnalysisResult")
+    supabase.table(gap_table).insert({
+        "userId": user.id,
+        "emergencyFundTarget": gap_analysis["emergency_fund_target"],
+        "emergencyFundCurrent": gap_analysis["emergency_fund_current"],
+        "emergencyFundStatus": gap_analysis["emergency_fund_status"],
+        "debtPriorityOrder": gap_analysis["debt_priority_order"],
+        "termCoverGap": gap_analysis["term_cover_gap"],
+        "healthCoverGap": gap_analysis["health_cover_gap"],
+        "emergencyFundCoveragePct": gap_analysis["emergency_fund_coverage_pct"],
+        "termCoverAdequacyPct": gap_analysis["term_cover_adequacy_pct"],
+        "healthCoverAdequacyPct": gap_analysis["health_cover_adequacy_pct"],
+        "savingsRatePct": gap_analysis["savings_rate_pct"],
+        "debtToIncomePct": gap_analysis["debt_to_income_pct"],
+        "computedAt": now,
+    }).execute()
+
+    alloc_table = get_table_name("AllocationResult")
+    supabase.table(alloc_table).insert({
+        "userId": user.id,
+        "equityPct": allocation["equity_pct"],
+        "debtPct": allocation["debt_pct"],
+        "goldPct": allocation["gold_pct"],
+        "computedAt": now,
+    }).execute()
 
     return {"success": True}

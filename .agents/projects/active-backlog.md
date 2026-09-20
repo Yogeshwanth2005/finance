@@ -19,25 +19,17 @@ and `docs/superpowers/plans/2026-09-17-python-fastapi-react-rewrite.md`.
   decisions/log.md's 2026-09-17 entry for the full narrowing history
   before resuming this conversation. No design doc, schema, or code
   exists yet.
-- **Insurance-plan document intelligence + Q&A chatbot** — idea captured
-  2026-09-18, scope narrowed same day, not yet designed. Since insurance
-  plans can't be fetched via an API, the idea is: (1) ingest a plan's
-  official policy-wordings PDF for any new health/term plan and
-  extract/summarize the info that actually matters (coverage, exclusions,
-  waiting periods, claim process, etc.) instead of a human reading the
-  full document, and (2) a chatbot over that ingested doc set so users
-  can ask **factual questions about a single plan** ("does this cover
-  maternity," "what's the waiting period," "how do I file a claim") and
-  get answers in plain language, grounded/citable back to the source
-  document. Effectively a RAG pipeline (doc ingestion + chunking +
-  retrieval + LLM answer synthesis) layered on top of
-  `insurance_plan_reference`.
-  **Explicitly out of scope** (per user, 2026-09-18): comparing plans or
-  recommending which plan to choose — this is plan-fact lookup only, not
-  advice. That scope boundary is what keeps this out of `DEMO_MODE`
-  advice-liability territory; the bot needs a hard refusal path for any
-  "which plan is better for me" style question rather than answering it,
-  to keep that boundary enforced at runtime, not just on paper.
+## Insurance-Plan Document Intelligence & RAG Chatbot (COMPLETED — 2026-09-20)
+Integrated SurakshaCFO RAG document extraction, deterministic 128-dim vector embedding, and regulatory guardrails into Fin v2.
+
+| Area | Features | Status |
+|---|---|---|
+| RAG Core (`backend/app/services/rag/`) | Multi-format text extraction (`pypdf`, `docx`, `txt`), rolling chunker (900 words / 120 overlap), deterministic SHA256 unit-normalized 128-dim embeddings, and cosine similarity | **Done** — 5 pytest tests passing |
+| Regulatory Guardrails (`backend/app/services/rag/guardrails.py`) | Hard pre-retrieval refusal for advice/comparison/ranking questions per Fin Invariant 4 | **Done** — Tested and verified |
+| Database Models & Migrations (`backend/app/models.py`, `backend/alembic/`) | `InsuranceDocument`, `InsuranceDocumentChunk`, and `InsuranceChatMessage` with camelCase mapping and Alembic migration `a1f8c9e0d1b2` | **Done** — 3 pytest tests passing |
+| API Router (`backend/app/routers/rag.py`) | `GET /api/insurance/rag/documents`, `POST /api/insurance/rag/chat`, `POST /api/insurance/rag/ingest` | **Done** — 4 pytest tests passing |
+| Frontend UI (`frontend/src/`) | `PolicyDrawer.jsx` slide-over clause inspection drawer with live clause retrieval, similarity scoring, and regulatory refusal alerts, integrated with `InsuranceCard.jsx` and `Dashboard.jsx` | **Done** — 12 Vitest tests passing |
+
 - **Fund return-history fact fields + daily auto-refresh** — idea
   captured 2026-09-18, not yet designed. Extend `FundReference` with
   since-inception, 1yr, 3yr, and 5yr trailing return % fields (same

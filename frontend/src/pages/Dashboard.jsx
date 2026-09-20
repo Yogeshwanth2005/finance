@@ -5,6 +5,7 @@ import { formatInr } from "../lib/format.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { FundCard } from "../components/FundCard.jsx";
 import { InsuranceCard, InsuranceComparisonTable } from "../components/InsuranceCard.jsx";
+import { PolicyDrawer } from "../components/PolicyDrawer.jsx";
 
 const BUCKETS = ["equity", "debt", "gold"];
 
@@ -12,6 +13,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeDrawerPlan, setActiveDrawerPlan] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
     apiClient
@@ -24,6 +27,16 @@ export default function Dashboard() {
   if (loading || !data) return null;
 
   const { kpis, allocation, fund_examples: fundExamples, insurance_examples: insuranceExamples, demo_mode: demoMode } = data;
+
+  function handleOpenDrawer(plan = null) {
+    setActiveDrawerPlan(plan);
+    setIsDrawerOpen(true);
+  }
+
+  function handleCloseDrawer() {
+    setIsDrawerOpen(false);
+    setActiveDrawerPlan(null);
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16 sm:py-20">
@@ -78,8 +91,19 @@ export default function Dashboard() {
 
       {demoMode && (kpis.term_cover_gap > 0 || kpis.health_cover_gap > 0) && (
         <section className="mt-12">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Insurance examples</h2>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Illustrative only — see disclaimer below.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Insurance examples & Policy Intelligence</h2>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Illustrative only — see disclaimer below.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenDrawer(null)}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-xs hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              🔍 Search All Policy Clauses
+            </button>
+          </div>
           <div className="mt-4 space-y-6">
             {[["term", kpis.term_cover_gap], ["health", kpis.health_cover_gap]].map(([planType, gap]) => {
               if (gap <= 0) return null;
@@ -92,10 +116,10 @@ export default function Dashboard() {
                   </h3>
                   {examples.length === 1 ? (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <InsuranceCard plan={examples[0]} />
+                      <InsuranceCard plan={examples[0]} onInspectClauses={handleOpenDrawer} />
                     </div>
                   ) : (
-                    <InsuranceComparisonTable plans={examples} />
+                    <InsuranceComparisonTable plans={examples} onInspectClauses={handleOpenDrawer} />
                   )}
                 </div>
               );
@@ -103,6 +127,14 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      <PolicyDrawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        defaultPlanId={activeDrawerPlan?.id}
+        defaultPlanName={activeDrawerPlan?.plan_name}
+      />
     </div>
   );
 }
+
