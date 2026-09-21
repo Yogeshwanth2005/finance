@@ -28,17 +28,36 @@ export interface FamilyProfile extends ProfileInput {
   id: string;
 }
 
-export interface Plan {
-  id: string;
+export interface PlanDetails {
+  eligibility: string;
+  cover_range: string;
+  waiting_periods: string;
+  exclusions: string;
+  riders: string;
+  claim_terms: string;
+}
+
+// The editable card an admin reviews. Values the source document does not state are null / "Not stated in the document".
+export interface PlanCardData {
   category: "term" | "health";
   name: string;
   provider: string;
-  csr: string;
-  annual_premium_from: number;
-  cover_label: string;
+  csr: string | null;
+  annual_premium_from: number | null;
+  cover_label: string | null;
   highlights: string[];
-  fit: string;
+  fit: string | null;
+  details: PlanDetails;
 }
+
+// A card on the Insurance page. The illustrative samples have no details or source document.
+export interface Plan extends Omit<PlanCardData, "details"> {
+  id: string;
+  details?: PlanDetails;
+  source_title?: string;
+}
+
+export type PlanStatus = "none" | "draft" | "published";
 
 export interface FinancialAnalysis {
   annual_household_income: number;
@@ -119,6 +138,8 @@ export interface DocumentRecord {
   enabled: boolean;
   created_at: string;
   created_by: string;
+  plan: PlanCardData | null;
+  plan_status: PlanStatus;
 }
 
 export interface AdminOverview {

@@ -18,6 +18,7 @@ from lib.auth import seed_admin
 from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.chat import router as chat_router
+from routers.plans import router as plans_router
 from routers.profile import router as profile_router
 
 
@@ -46,6 +47,7 @@ api_router.include_router(profile_router)
 api_router.include_router(auth_router)
 api_router.include_router(admin_router)
 api_router.include_router(chat_router)
+api_router.include_router(plans_router)
 
 app.add_middleware(
     CORSMiddleware,

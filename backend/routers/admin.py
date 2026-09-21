@@ -8,8 +8,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 
 from lib.auth import require_admin
 from lib.db import db
+from lib.llm import llm_configured
+from lib.plan_extract import extract_plan
 from lib.rag import chunk_text, embed, extract_text
-from models.rag import AdminOverview, AdminQuestionRecord, AdminUserRecord, DocumentRecord, DocumentStatusInput
+from models.rag import AdminOverview, AdminQuestionRecord, AdminUserRecord, DocumentRecord, DocumentStatusInput, PlanCard, PlanStatusInput
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
@@ -22,11 +24,15 @@ async def _save_document(title: str, source_type: str, text: str, source_url: st
         raise HTTPException(status_code=422, detail="The document did not contain readable text")
     document_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc)
+    display_title = title.strip() or "Untitled insurance document"
+    # A draft card for the admin to review; None without a Gemini key or when nothing usable is found.
+    plan = await extract_plan(display_title, text)
+    plan_fields = {"plan": plan.model_dump() if plan else None, "plan_status": "draft" if plan else "none"}
     await db.rag_documents.insert_one(
         {
             "_id": document_id,
             "id": document_id,
-            "title": title.strip() or "Untitled insurance document",
+            "title": display_title,
             "source_type": source_type,
             "source_url": source_url,
             "chunk_count": len(chunks),
@@ -34,15 +40,16 @@ async def _save_document(title: str, source_type: str, text: str, source_url: st
             "enabled": True,
             "created_at": created_at,
             "created_by": admin["id"],
+            **plan_fields,
         }
     )
     await db.rag_chunks.insert_many(
         [
-            {"_id": str(uuid.uuid4()), "document_id": document_id, "document_title": title.strip() or "Untitled insurance document", "text": chunk, "embedding": embed(chunk), "enabled": True}
-            for chunk in chunks
+            {"_id": str(uuid.uuid4()), "document_id": document_id, "document_title": display_title, "position": index, "text": chunk, "embedding": embed(chunk), "enabled": True}
+            for index, chunk in enumerate(chunks)
         ]
     )
-    return DocumentRecord(id=document_id, title=title.strip() or "Untitled insurance document", source_type=source_type, source_url=source_url, chunk_count=len(chunks), status="indexed", enabled=True, created_at=created_at, created_by=admin["id"])
+    return DocumentRecord(id=document_id, title=display_title, source_type=source_type, source_url=source_url, chunk_count=len(chunks), status="indexed", enabled=True, created_at=created_at, created_by=admin["id"], **plan_fields)
 
 
 @router.get("/overview", response_model=AdminOverview)
@@ -98,6 +105,49 @@ async def change_document_status(document_id: str, input_data: DocumentStatusInp
     document.update({"enabled": input_data.enabled, "status": next_status})
     document.pop("_id", None)
     return DocumentRecord(**document)
+
+
+async def _get_document(document_id: str) -> dict:
+    document = await db.rag_documents.find_one({"id": document_id})
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    document.pop("_id", None)
+    return document
+
+
+async def _set_plan_fields(document_id: str, document: dict, fields: dict) -> DocumentRecord:
+    await db.rag_documents.update_one({"id": document_id}, {"$set": fields})
+    return DocumentRecord(**{**document, **fields})
+
+
+@router.put("/documents/{document_id}/plan", response_model=DocumentRecord)
+async def save_plan(document_id: str, plan: PlanCard, _: dict = Depends(require_admin)) -> DocumentRecord:
+    """Admin review: store the edited card. A new card starts as a draft; a published one stays published."""
+    document = await _get_document(document_id)
+    plan_status = document.get("plan_status", "none")
+    return await _set_plan_fields(document_id, document, {"plan": plan.model_dump(), "plan_status": "draft" if plan_status == "none" else plan_status})
+
+
+@router.patch("/documents/{document_id}/plan/status", response_model=DocumentRecord)
+async def change_plan_status(document_id: str, input_data: PlanStatusInput, _: dict = Depends(require_admin)) -> DocumentRecord:
+    document = await _get_document(document_id)
+    if not document.get("plan"):
+        raise HTTPException(status_code=409, detail="Add the plan details before publishing")
+    return await _set_plan_fields(document_id, document, {"plan_status": input_data.status})
+
+
+@router.post("/documents/{document_id}/plan/extract", response_model=DocumentRecord)
+async def extract_plan_from_document(document_id: str, _: dict = Depends(require_admin)) -> DocumentRecord:
+    """Re-run AI extraction from the indexed chunks. The result replaces the card and goes back to draft."""
+    if not llm_configured():
+        raise HTTPException(status_code=503, detail="AI extraction is not configured on the server; enter the plan details manually")
+    document = await _get_document(document_id)
+    chunks = await db.rag_chunks.find({"document_id": document_id}, {"_id": 0, "text": 1, "position": 1}).to_list(5000)
+    text = " ".join(chunk["text"] for chunk in sorted(chunks, key=lambda chunk: chunk.get("position", 0)))
+    plan = await extract_plan(document["title"], text)
+    if plan is None:
+        raise HTTPException(status_code=422, detail="No term or health plan details could be extracted from that document; enter them manually")
+    return await _set_plan_fields(document_id, document, {"plan": plan.model_dump(), "plan_status": "draft"})
 
 
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

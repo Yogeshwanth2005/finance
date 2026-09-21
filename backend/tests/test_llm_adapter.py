@@ -36,6 +36,48 @@ class _FakeClient:
         self.aio = type("Aio", (), {"models": _FakeModels()})()
 
 
+class _JsonResponse:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeJsonModels:
+    def __init__(self, text):
+        self.text = text
+        self.kwargs = None
+
+    async def generate_content(self, **kwargs):
+        self.kwargs = kwargs
+        return _JsonResponse(self.text)
+
+
+def _fake_json_client(text):
+    models = _FakeJsonModels(text)
+    return type("Client", (), {"aio": type("Aio", (), {"models": models})()})(), models
+
+
+async def test_generate_json_parses_the_model_reply_and_requests_json(monkeypatch):
+    client, models = _fake_json_client('{"name": "Plan A"}')
+    monkeypatch.setattr(llm, "_client", lambda: client)
+    monkeypatch.setenv("GEMINI_MODEL", "test-model")
+
+    result = await llm.generate_json("SYSTEM", "CONTENT")
+
+    assert result == {"name": "Plan A"}
+    assert models.kwargs["model"] == "test-model"
+    assert models.kwargs["contents"] == "CONTENT"
+    assert models.kwargs["config"].system_instruction == "SYSTEM"
+    assert models.kwargs["config"].response_mime_type == "application/json"
+
+
+async def test_generate_json_raises_on_non_json_reply(monkeypatch):
+    client, _ = _fake_json_client("not json")
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    with pytest.raises(ValueError):
+        await llm.generate_json("SYSTEM", "CONTENT")
+
+
 async def test_stream_answer_yields_only_non_empty_text(monkeypatch):
     fake = _FakeClient()
     monkeypatch.setattr(llm, "_client", lambda: fake)
