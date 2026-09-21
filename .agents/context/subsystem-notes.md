@@ -52,8 +52,8 @@ Any LLM exception falls back to `_general_profile_answer` with `fallback: true`.
   only see `published` cards whose document is `enabled`; pausing a document hides its card, deleting it removes it.
 - `rag_chunks` now carry `position`; re-extraction rebuilds the text from chunks sorted by it (older chunks
   without it fall back to insertion order, and the 120-word overlap means some text repeats, which is harmless).
-- The plan card shows on the Insurance page only when at least one card is published; otherwise the
-  hardcoded samples (`routers/profile.py::_plans`, `frontend/src/lib/sampleData.ts`) show.
+- The Insurance page shows only published cards; with none it shows an empty state. There are no
+  hardcoded demo plans any more (removed from `routers/profile.py`, `models/profile.py`, `sampleData.ts`).
 
 ## LLM seam (`backend/lib/llm.py`)
 `_client()` is the patch point for tests (they stub it; nothing calls the network). Any
