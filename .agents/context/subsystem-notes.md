@@ -40,7 +40,9 @@ Real streaming has not been verified without a live `GEMINI_API_KEY`.
   `get_current_user()` builds dicts with only `id`, which used to 500 `/auth/me`.
 - Auth cookies are marked `Secure` when `FRONTEND_URL` starts with `https://`. Keep it `http://`
   locally or plain-HTTP clients won't send them.
-- `/auth/forgot-password` returns `demo_token` in the response (no email provider exists).
+- `/auth/forgot-password` returns `demo_token` only when `EXPOSE_RESET_TOKEN=true` (no email provider
+  exists). Local `backend/.env` sets it so the reset pytest runs; without it that test skips. Never set
+  it on a public deployment: it would let anyone reset any account, including the admin's.
 
 ## Frontend build
 - `npm install` (plain) crashes npm 10.9.8 in `#loadPeerSet` on the optional peers of

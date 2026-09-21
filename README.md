@@ -95,3 +95,14 @@ tests use is in [docs/test_credentials.md](docs/test_credentials.md) and needs t
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Seeded admin account; skipped if either is unset |
 | `GEMINI_API_KEY` | Optional; empty means deterministic fallback answers |
 | `GEMINI_MODEL` | Optional; defaults to `gemini-3-flash-preview` |
+| `EXPOSE_RESET_TOKEN` | Set to `true` only for local demos/tests. It makes `/auth/forgot-password` return the reset token; never set it in production |
+
+## Deploying the backend (Render)
+
+`render.yaml` defines the FastAPI service (root `backend`, `uvicorn server:app --host 0.0.0.0 --port $PORT`,
+health check `/api/`). In Render choose **New → Blueprint**, pick this repo, and fill in the prompted
+secrets: `MONGO_URL` (an Atlas user with `readWrite` on `fin`, not an admin user), `ADMIN_EMAIL`,
+`ADMIN_PASSWORD` (not the public demo password), and the `https://` URLs for `FRONTEND_URL`, `APP_URL`
+and `CORS_ORIGINS`. `JWT_SECRET` is generated. In Atlas, allow Render's outbound IPs under
+**Network Access**. The frontend is deployed separately and proxies `/api/*` to the Render URL, so the
+browser sees a single origin and cookies work without CORS changes.

@@ -39,8 +39,9 @@ git tag `pre-finance-swap`.
   cosine there, over 128-dim hashed bag-of-words vectors. Upgrade path: Atlas Vector Search plus a
   real embedding model.
 - **`login_attempts` never expire** (no TTL index) and are keyed per IP+email.
-- **`/auth/forgot-password`** returns `demo_token` in the response and reveals whether the account
-  exists; demo-only until an email provider exists.
+- **Password reset has no delivery channel.** `/auth/forgot-password` returns the token only when
+  `EXPOSE_RESET_TOKEN=true` (local dev/tests); it is off by default and not in `render.yaml`, so on a
+  public deployment users cannot reset a forgotten password until an email provider exists.
 - **Google sign-in** is pending (no OAuth credentials).
 - **`_plans()` in `routers/profile.py`** hard-codes named insurers and claim-settlement ratios.
   The old `DEMO_MODE` gate was not ported (see decisions/log.md, 2026-09-21).

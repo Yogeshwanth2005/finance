@@ -191,8 +191,13 @@ async def forgot_password(input_data: ForgotPasswordInput) -> ForgotPasswordResp
             "used": False,
         }
     )
-    # There is no email provider in this MVP. Returning a clearly-labelled demo token keeps the flow testable.
-    return ForgotPasswordResponse(message="Reset instructions created for this demo workspace.", demo_token=token)
+    # There is no email provider in this MVP. The token is only returned for local demos/tests
+    # (EXPOSE_RESET_TOKEN=true); on a public deployment it would let anyone reset any account.
+    expose = os.environ.get("EXPOSE_RESET_TOKEN", "").lower() == "true"
+    return ForgotPasswordResponse(
+        message="Reset instructions created for this demo workspace." if expose else "If the account exists, reset instructions have been created.",
+        demo_token=token if expose else None,
+    )
 
 
 @router.post("/reset-password")

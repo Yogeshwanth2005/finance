@@ -1,0 +1,35 @@
+# Render Blueprint for the FastAPI backend. The frontend is deployed separately (Vercel) and
+# proxies /api/* to this service, so the browser only ever sees one origin.
+services:
+  - type: web
+    name: fin-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: DB_NAME
+        value: fin
+      - key: JWT_SECRET
+        generateValue: true
+      # Entered in the Render dashboard when the Blueprint is created (never committed):
+      - key: MONGO_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Your public https Vercel URL. FRONTEND_URL must be https:// or auth cookies are not marked Secure.
+      - key: FRONTEND_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # EXPOSE_RESET_TOKEN is deliberately absent: with it unset, /auth/forgot-password never returns the reset token.

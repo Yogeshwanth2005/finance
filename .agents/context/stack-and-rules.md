@@ -6,7 +6,7 @@
 - Database: MongoDB (`MONGO_URL`, `DB_NAME`). No migrations; indexes are declared in `backend/lib/db.py` `INDEXES` and applied at startup.
 - Auth: JWT access/refresh tokens in HttpOnly cookies (PyJWT + bcrypt), roles `user` / `admin`. A `Bearer` header is also accepted (the tests use it).
 - LLM: Gemini through `backend/lib/llm.py` (`google-genai`), optional. RAG uses local 128-dim hashed bag-of-words vectors stored in Mongo, cosine in Python.
-- Testing: pytest against a live uvicorn (32 tests), Playwright workspace in `tests/` (no specs yet).
+- Testing: pytest against a live uvicorn (35 tests), Playwright workspace in `tests/` (no specs yet).
 - Behaviour spec: `docs/SURAKSHACFO_SPEC.md`.
 
 ## Hard Invariants
@@ -18,7 +18,8 @@
 6. **`seed_admin` never invents credentials**: it seeds only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
 7. **Backend tests hit a live server** at `BACKEND_URL` (default `http://localhost:8001`). `pytest.ini` keeps `-n 2 --dist loadscope` and `asyncio_mode = auto`.
 8. **Frontend typecheck is `npx tsc -b --noEmit`** (`npm run typecheck`); plain `tsc --noEmit` checks zero files.
-9. **`.env*` stays git-ignored** (only `.env.example` is tracked). Never commit keys.
+9. **`.env*` and `*.env` stay git-ignored** (only `.env.example` is tracked). Never commit keys.
+10. **The reset token is never returned unless `EXPOSE_RESET_TOKEN=true`**, and that flag is never set in production (`render.yaml` omits it).
 
 ## File Map
 - `backend/server.py` — app, CORS, index/admin startup, `api_router` mounting the four routers
