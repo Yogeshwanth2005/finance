@@ -55,6 +55,17 @@ class Plan(BaseModel):
     fit: str
 
 
+class ProfileKpis(BaseModel):
+    emergency_coverage_pct: float
+    runway_months: float
+    term_cover_adequacy_pct: float
+    health_cover_adequacy_pct: float
+    savings_rate_pct: float
+    debt_to_income_pct: float
+    cover_to_liabilities_ratio: float
+    liabilities_to_income_multiple: float
+
+
 class FinancialAnalysis(BaseModel):
     annual_household_income: float
     annual_expenses: float
@@ -70,6 +81,7 @@ class FinancialAnalysis(BaseModel):
     emergency_goal: float
     emergency_gap: float
     emergency_months: float
+    kpis: ProfileKpis
     protection_score: int
     score_label: str
     formula_notes: list[str]
