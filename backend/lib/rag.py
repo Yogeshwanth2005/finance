@@ -7,6 +7,7 @@ import math
 import re
 from typing import Any
 
+from lib.chat_context import top_chunks_per_document
 from lib.db import db
 
 VECTOR_SIZE = 128
@@ -68,3 +69,11 @@ async def retrieve(question: str, limit: int = 5, document_ids: list[str] | None
     candidates = await db.rag_chunks.find(query, {"_id": 0}).to_list(5000)
     ranked = sorted(((cosine(query_vector, item.get("embedding", [])), item) for item in candidates), key=lambda pair: pair[0], reverse=True)
     return [item for score, item in ranked[:limit] if score > 0.05]
+
+
+async def retrieve_across_documents(question: str, per_document: int = 2, max_documents: int = 6) -> list[dict[str, Any]]:
+    """Retrieval for questions that name no plan: the best chunks of every relevant active document."""
+    query_vector = embed(question)
+    candidates = await db.rag_chunks.find({"enabled": {"$ne": False}}, {"_id": 0}).to_list(5000)
+    scored = [(cosine(query_vector, item.get("embedding", [])), item) for item in candidates]
+    return top_chunks_per_document([pair for pair in scored if pair[0] > 0.05], per_document, max_documents)

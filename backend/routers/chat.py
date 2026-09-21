@@ -11,8 +11,9 @@ from fastapi.responses import StreamingResponse
 
 from lib.auth import get_current_user
 from lib.db import db
+from lib.chat_context import HISTORY_LIMIT, build_retrieval_query, cited_titles, format_history
 from lib.llm import llm_configured, stream_answer
-from lib.rag import retrieve
+from lib.rag import retrieve, retrieve_across_documents
 from models.profile import ProfileInput
 from models.rag import ChatMessageRecord, ChatQuestion
 from routers.profile import _analysis
@@ -133,6 +134,37 @@ def _general_profile_answer(question: str, profile: ProfileInput | None, languag
     )
 
 
+def _profile_context(profile: ProfileInput | None) -> str:
+    if not profile:
+        return "User has not completed a profile."
+    analysis = _analysis(profile)
+    return (
+        f"User profile: {profile.dependents} financial dependents, annual household income ₹{analysis.annual_household_income:,.0f}, "
+        f"liabilities ₹{analysis.total_liabilities:,.0f}, emergency reserve {analysis.emergency_months:.1f} months, "
+        f"term-cover gap ₹{analysis.term_gap_crore:.2f} Cr, recommended health cover ₹{analysis.recommended_health_cover_lakh:.1f} lakh "
+        f"(gap ₹{analysis.health_gap_lakh:.1f} lakh), protection score {analysis.protection_score}/100."
+    )
+
+
+def _open_system_message(language_name: str, profile_context: str, conversation: str, source_context: str) -> str:
+    return (
+        "You are SurakshaCFO's friendly personal-finance and insurance advisor for an Indian family. Answer every question the user asks, "
+        "whether it is general finance or insurance knowledge or about specific plans. Be direct and concise, and give a clear recommendation "
+        "when asked which option to take, with reasons tied to the user's profile.\n"
+        "- Use the user's profile and the recent conversation to personalise the answer and to resolve follow-ups such as 'which should I take'.\n"
+        "- INDEXED PLAN DOCUMENTS below are the plans on this platform. For questions about choosing, comparing or coverage of plans, use them: "
+        "name each plan by its exact title and state only facts found in the excerpts. If the excerpts do not state something (premium, waiting period, exclusions), say so. "
+        "Ignore excerpts that are not relevant to the question.\n"
+        "- Use general knowledge for concepts (term vs health cover, riders, waiting periods, how much cover is enough) and label it as general. "
+        "Never invent plan-specific facts, premiums, claim ratios, tax advice or guarantees.\n"
+        "- This is educational guidance, not licensed advice; remind the user to verify the current policy schedule before buying.\n"
+        f"Write the entire answer in {language_name}. Keep insurer names, plan names, monetary values and legal terms exactly as written in the source.\n\n"
+        f"{profile_context}\n\n"
+        f"RECENT CONVERSATION:\n{conversation or '(none)'}\n\n"
+        f"INDEXED PLAN DOCUMENTS:\n{source_context or 'No indexed plan document matched this question.'}"
+    )
+
+
 def _comparison_fallback(sources: list[dict], language: str) -> str:
     grouped: dict[str, str] = {}
     for source in sources:
@@ -164,7 +196,6 @@ async def chat_history(user: dict = Depends(get_current_user)) -> list[ChatMessa
 async def stream_chat(question: ChatQuestion, user: dict = Depends(get_current_user)) -> StreamingResponse:
     profile_doc = await db.profiles.find_one({"_id": user["id"]})
     profile = ProfileInput(**profile_doc["profile"]) if profile_doc else None
-    analysis = _analysis(profile) if profile else None
     language = user.get("preferred_language", "en")
     language_name = LANGUAGE_NAMES.get(language, "English")
     lower_question = f" {question.question.lower()} "
@@ -173,17 +204,43 @@ async def stream_chat(question: ChatQuestion, user: dict = Depends(get_current_u
     matched_document_ids = _matching_document_ids(question.question, active_documents)
     is_plan_specific = bool(matched_document_ids)
     use_documents = is_comparison or is_plan_specific
-    sources = await retrieve(question.question, document_ids=matched_document_ids) if matched_document_ids else []
+    # With an LLM configured, a question that names no plan is still answered: the model sees the profile, the recent
+    # conversation and the best chunks of every relevant plan, and decides what is relevant. Without one, the gated
+    # deterministic behaviour below is kept.
+    open_mode = llm_configured() and not use_documents
+    recent = await db.chat_messages.find({"user_id": user["id"]}, {"_id": 0, "role": 1, "text": 1}).sort("created_at", -1).to_list(HISTORY_LIMIT)
+    history = list(reversed(recent))
+    if open_mode:
+        sources = await retrieve_across_documents(build_retrieval_query(question.question, history))
+    else:
+        sources = await retrieve(question.question, document_ids=matched_document_ids) if matched_document_ids else []
     source_context = "\n\n".join(f"SOURCE: {item['document_title']}\n{item['text']}" for item in sources)
-    profile_context = f"User profile: annual household income ₹{analysis.annual_household_income:,.0f}, term gap ₹{analysis.term_gap_crore:.2f} Cr, health gap ₹{analysis.health_gap_lakh:.1f} lakh." if analysis else "User has not completed a profile."
+    profile_context = _profile_context(profile)
+    profile_source = {"hi": "आपका वित्तीय प्रोफ़ाइल", "te": "మీ ఆర్థిక ప్రొఫైల్", "ta": "உங்கள் நிதி விவரம்"}.get(language, "Your financial profile")
 
     async def generator() -> AsyncIterator[str]:
         await db.chat_messages.insert_one({"_id": str(uuid.uuid4()), "id": str(uuid.uuid4()), "user_id": user["id"], "role": "you", "text": question.question, "sources": [], "created_at": datetime.now(timezone.utc)})
         source_titles = list(dict.fromkeys(item["document_title"] for item in sources))
+        if open_mode:
+            system_message = _open_system_message(language_name, profile_context, format_history(history), source_context)
+            try:
+                answer = ""
+                async for delta in stream_answer(system_message, question.question):
+                    answer += delta
+                    yield _event({"type": "delta", "content": delta})
+                cited = cited_titles(answer, [item["document_title"] for item in sources]) or [profile_source]
+                done: dict = {"type": "done", "sources": cited}
+            except Exception:
+                answer = _general_profile_answer(question.question, profile, language)
+                yield _event({"type": "delta", "content": answer})
+                cited = [profile_source]
+                done = {"type": "done", "sources": cited, "mode": "general", "fallback": True}
+            await db.chat_messages.insert_one({"_id": str(uuid.uuid4()), "id": str(uuid.uuid4()), "user_id": user["id"], "role": "advisor", "text": answer, "sources": cited, "created_at": datetime.now(timezone.utc)})
+            yield _event(done)
+            return
         if not use_documents:
             answer = _general_profile_answer(question.question, profile, language)
             yield _event({"type": "delta", "content": answer})
-            profile_source = {"hi": "आपका वित्तीय प्रोफ़ाइल", "te": "మీ ఆర్థిక ప్రొఫైల్", "ta": "உங்கள் நிதி விவரம்"}.get(language, "Your financial profile")
             await db.chat_messages.insert_one({"_id": str(uuid.uuid4()), "id": str(uuid.uuid4()), "user_id": user["id"], "role": "advisor", "text": answer, "sources": [profile_source], "created_at": datetime.now(timezone.utc)})
             yield _event({"type": "done", "sources": [profile_source], "mode": "general"})
             return
@@ -210,7 +267,7 @@ async def stream_chat(question: ChatQuestion, user: dict = Depends(get_current_u
             + f"Write the entire answer in {language_name}. Keep insurer names, plan names, source titles, monetary values, percentages, clause identifiers and legal terms exactly as written in the source when translating could change their meaning. "
             + ("The user explicitly requested a comparison. Start with a Markdown table. Use one row per feature and one column per named plan. Include policy type, eligibility, cover, premium, waiting periods, exclusions, riders, claim/payment terms, co-pay or room limits where relevant, and profile fit. Write 'Not stated in indexed documents' for missing facts. After the table, give a neutral evidence-based summary; do not select a winner unless the documents establish it. " if is_comparison else "Discuss only the plan or provider explicitly named by the user. ")
             + "\n\n"
-            + f"{profile_context}\n\nINDEXED DOCUMENTS:\n{source_context}"
+            + f"{profile_context}\n\nRECENT CONVERSATION:\n{format_history(history) or '(none)'}\n\nINDEXED DOCUMENTS:\n{source_context}"
         )
         try:
             answer = ""

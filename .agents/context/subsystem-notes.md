@@ -36,6 +36,14 @@ generic words) or an exact title. Two consequences:
   should also put a distinctive content term in the question.
 Comparison answers list sources in chunk-rank order, not question order.
 
+**Open mode (key set only).** The two points above describe the *no-key / named-plan* behaviour. When
+`llm_configured()` and the question names no plan and is not a comparison, `stream_chat` skips title
+gating: `retrieve_across_documents` returns the top 2 chunks of up to 6 documents, the last 6
+`chat_messages` go into the prompt (so "which should I take" resolves), and Gemini answers from profile,
+history and excerpts. `sources` = plan titles the answer names (`cited_titles`), else the profile label.
+Any LLM exception falls back to `_general_profile_answer` with `fallback: true`. The pure helpers live in
+`lib/chat_context.py` (unit tests: `tests/test_chat_context.py`, no server needed).
+
 ## LLM seam (`backend/lib/llm.py`)
 `_client()` is the patch point for tests (they stub it; nothing calls the network). Any
 exception inside the streaming block in `chat.py` falls through to the deterministic fallback

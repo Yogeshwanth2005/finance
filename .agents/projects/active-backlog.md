@@ -29,7 +29,8 @@ cookies work and no CORS/cookie code changes were needed.
 | Vercel project | **Not confirmed.** `frontend/vercel.json` is pushed (root dir `frontend`, `npm install --legacy-peer-deps`, `/api` rewrite to the Render URL). After deploy, set `FRONTEND_URL`, `APP_URL`, `CORS_ORIGINS` on Render to the `https://…vercel.app` URL |
 | Insurance chat UI | **Done**: fixed-height panel with its own scroll, auto-scrolls to the newest message (commit 364d420) |
 | Favicon | **Open**: the tab icon files in `frontend/public/` (`favicon.svg/.ico/-16/-32`, `apple-touch-icon.png`) are the Emergent logo copied from the finance export; replace with a SurakshaCFO icon |
-| Gemini | **Open**: `GEMINI_API_KEY` not confirmed on Render; the answers use the fallback until it is set. Model default `gemini-3-flash-preview` is unverified |
+| Gemini | **Open**: `GEMINI_API_KEY` not confirmed on Render; the answers use the fallback until it is set (open-mode chat, which answers general and "which plan" questions, only activates with a key). Model default `gemini-3-flash-preview` is unverified; a free-tier key from Google AI Studio works, consider `GEMINI_MODEL=gemini-2.5-flash-lite` for the larger daily quota. Open mode is verified only with a stubbed LLM, not a live key |
+| Open-mode chat | **Built, unverified live**: needs a real key plus a run of the live-server suite. `test_tscheck_general_question_profile_based` and `test_tscheck_plan_specific_retrieval_gating` assert the old gated behaviour and will fail against a keyed server; rewrite them once open mode is confirmed |
 
 ---
 

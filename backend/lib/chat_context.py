@@ -1,0 +1,52 @@
+"""Pure helpers for open chat mode (Gemini answers any question from profile, history and documents)."""
+
+from __future__ import annotations
+
+from typing import Any
+
+SHORT_QUESTION_WORDS = 6
+HISTORY_LIMIT = 6
+HISTORY_TEXT_LIMIT = 600
+
+
+def _last_user_question(history: list[dict]) -> str:
+    for message in reversed(history):
+        if message.get("role") == "you":
+            return message.get("text", "")
+    return ""
+
+
+def build_retrieval_query(question: str, history: list[dict]) -> str:
+    """A short follow-up ("which should I take") has no searchable terms, so borrow the previous question."""
+    if len(question.split()) >= SHORT_QUESTION_WORDS:
+        return question
+    previous = _last_user_question(history)
+    return f"{previous} {question}".strip() if previous else question
+
+
+def format_history(history: list[dict]) -> str:
+    return "\n".join(
+        f"{'User' if message.get('role') == 'you' else 'Advisor'}: {message.get('text', '')[:HISTORY_TEXT_LIMIT]}"
+        for message in history
+    )
+
+
+def cited_titles(answer: str, titles: list[str]) -> list[str]:
+    """Cite only the plans the answer actually names, so unrelated retrieved documents are never shown as sources."""
+    lowered = answer.lower()
+    return [title for title in dict.fromkeys(titles) if title.lower() in lowered]
+
+
+def top_chunks_per_document(
+    scored: list[tuple[float, dict[str, Any]]], per_document: int = 2, max_documents: int = 6
+) -> list[dict[str, Any]]:
+    """Best chunks of the best-scoring documents, so a "which plan" question sees every plan, not just one."""
+    by_document: dict[str, list[tuple[float, dict[str, Any]]]] = {}
+    for score, chunk in scored:
+        by_document.setdefault(chunk["document_id"], []).append((score, chunk))
+    ranked = sorted(by_document.values(), key=lambda pairs: max(score for score, _ in pairs), reverse=True)
+    return [
+        chunk
+        for pairs in ranked[:max_documents]
+        for _, chunk in sorted(pairs, key=lambda pair: pair[0], reverse=True)[:per_document]
+    ]
