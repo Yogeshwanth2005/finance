@@ -94,12 +94,15 @@ async def login(input_data: LoginInput, request: Request, response: Response) ->
         raise HTTPException(status_code=401, detail="Email or password is incorrect")
 
     await db.login_attempts.delete_one({"_id": identifier})
+    # Chat never outlives a session: a login always starts with an empty conversation.
+    await db.chat_messages.delete_many({"user_id": user["_id"]})
     set_auth_cookies(response, user["_id"], email)
     return _public(user)
 
 
 @router.post("/logout")
-async def logout(response: Response, _: dict = Depends(get_current_user)) -> dict[str, str]:
+async def logout(response: Response, user: dict = Depends(get_current_user)) -> dict[str, str]:
+    await db.chat_messages.delete_many({"user_id": user["id"]})
     clear_auth_cookies(response)
     return {"message": "Signed out"}
 

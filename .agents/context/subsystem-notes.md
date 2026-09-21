@@ -19,6 +19,13 @@ already held them. `conftest.py` has a session-scoped autouse fixture that regis
 - Tests never clean up: `tscheck-*` documents and users accumulate in the DB. Language tests
   share one retest user and PATCH its `preferred_language`, so parallel modules can race on it.
 
+## Chat history is session-only (`routers/auth.py`)
+`login` and `logout` call `db.chat_messages.delete_many({"user_id": ...})`. Consequence: the admin
+"Questions asked" count (`/admin/overview`) and `/admin/questions` read the same collection, so they only
+show chats from users who are currently signed in. If durable question analytics are wanted, log
+questions to a separate collection instead of relying on `chat_messages`. A tab closed without logging
+out keeps its messages until that user's next login.
+
 ## Chat retrieval (`backend/routers/chat.py`, `backend/lib/rag.py`)
 `_matching_document_ids` matches a question to documents by **title words** (>= 4 chars, minus
 generic words) or an exact title. Two consequences:

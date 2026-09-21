@@ -21,6 +21,7 @@
 8. **Frontend typecheck is `npx tsc -b --noEmit`** (`npm run typecheck`); plain `tsc --noEmit` checks zero files.
 9. **`.env*` and `*.env` stay git-ignored** (only `.env.example` is tracked). Never commit keys.
 10. **The reset token is never returned unless `EXPOSE_RESET_TOKEN=true`**, and that flag is never set in production (`render.yaml` omits it).
+11. **Chat never outlives a session**: `POST /auth/logout` and `POST /auth/login` delete the user's `chat_messages`. Do not add code that persists or restores history across sessions.
 
 ## File Map
 - `backend/server.py` — app, CORS, index/admin startup, `api_router` mounting the four routers

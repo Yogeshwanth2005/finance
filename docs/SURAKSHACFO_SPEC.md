@@ -48,4 +48,4 @@ SurakshaCFO is an India/INR family financial protection planner. A household ent
 - Comparison requests are rendered as real tables. Missing policy facts are labelled as not stated rather than inferred.
 - RAG retrieval continues over English source documents, but Gemini answers in the account's saved language. Plan/provider names, source titles, monetary values and legal identifiers remain unchanged; general profile-based answers are also localized.
 - If no relevant source exists or Gemini is unavailable, the chatbot explicitly falls back without inventing policy details.
-- Chat history and cited source titles persist per account.
+- Chat history lasts only for the current session: it is deleted on logout, and every login starts with an empty conversation. Admin "Questions asked" figures therefore reflect only users who are currently signed in.
