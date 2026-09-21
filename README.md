@@ -1,9 +1,9 @@
 # Fin (SurakshaCFO)
 
 A personal-finance and insurance-gap demo: a family enters its finances, gets a protection
-score and a mutual-fund allocation estimate, and asks an insurance advisor questions that are
-answered from admin-indexed policy documents. Behaviour is specified in
-[docs/SURAKSHACFO_SPEC.md](docs/SURAKSHACFO_SPEC.md).
+score and a mutual-fund allocation estimate, browses insurance plan cards, and asks an
+advisor questions that are answered from its profile and admin-indexed policy documents.
+Behaviour is specified in [docs/SURAKSHACFO_SPEC.md](docs/SURAKSHACFO_SPEC.md).
 
 > Educational estimates only; not financial, tax, medical or insurance advice.
 
@@ -15,14 +15,32 @@ small typed fetch layer over `/api`.
 ```
 backend/   FastAPI + Motor (async MongoDB) + Pydantic v2
   server.py    app, CORS, single APIRouter(prefix="/api")
-  routers/     auth, profile, chat, admin
-  lib/         db, auth (JWT cookies + bcrypt), rag (local hashed vectors), llm (Gemini seam), dates
+  routers/     auth, profile, chat, plans, admin
+  lib/         db, auth (JWT cookies + bcrypt), rag (local hashed vectors), llm (Gemini seam),
+               chat_context (open-mode prompt helpers), plan_extract (document -> plan card), dates
   models/      Pydantic request/response models
   tests/       pytest, run against a live server
 frontend/  Vite + React 19 + Tailwind v4 + shadcn/ui, i18n (en / hi / te / ta)
+  src/pages/   Login, ResetPassword, Home, Dashboard, Insurance, Account, AdminDocuments
+  vercel.json  build settings and the /api rewrite to the Render backend
 tests/     Playwright e2e workspace
 docs/      spec and demo credentials
+render.yaml  Render Blueprint for the backend
 ```
+
+## Features
+
+- **Dashboard**: protection score, insurance gap and a mutual-fund allocation estimate from the
+  family profile.
+- **Insurance advisor**: streamed chat in English, Hindi, Telugu or Tamil, with cited sources.
+  Chat history is per session: it is deleted on login and logout.
+- **Plan cards**: uploading a policy document as admin indexes it for chat and drafts a plan
+  card from it (`lib/plan_extract.py`). The admin reviews and edits the draft in the
+  documents page, then publishes it. `GET /api/plans` and the Insurance page show only
+  published cards. Fields the document does not state are shown as "Not stated in the
+  document" rather than guessed.
+- **Admin**: `/admin/documents` manages documents (upload, enable/disable, delete, plan-card
+  review); the admin API also serves an overview, users and the questions asked.
 
 ## Running
 
@@ -60,9 +78,14 @@ land outside `/api` and the proxy would not reach it.
   JSON-serialisable.
 - **LLM**: `lib/llm.py` is the only module that talks to Gemini. With no `GEMINI_API_KEY` the
   chat degrades to a deterministic, localised fallback answer, so the app runs without a key.
-- **Chat retrieval** is title-gated: documents are only retrieved when the question names an
-  indexed plan/provider or asks for a comparison. General questions are answered from the
-  family's profile alone.
+- **Chat has two modes.** With `GEMINI_API_KEY` set and no plan named in the question, chat runs
+  in *open mode*: Gemini gets the profile, recent history and the best chunks across all
+  enabled documents, and decides what is relevant. Otherwise retrieval is title-gated:
+  documents are only retrieved when the question names an indexed plan/provider or asks for a
+  comparison, and general questions are answered from the profile alone. Answers stay within
+  personal finance and insurance (`SCOPE_RULES` in `lib/chat_context.py`).
+- **Plan cards are drafts until published.** `plan_extract.py` treats the LLM's JSON as
+  untrusted, cleans every field, and never blocks or fails an upload.
 - **Admin** is seeded only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
 
 ## Testing
@@ -76,7 +99,9 @@ cd backend && .venv/Scripts/python -m pytest
 
 `backend/pytest.ini` runs with `-n 2 --dist loadscope` (pytest-xdist) and
 `asyncio_mode = auto`; pass `-n 0` for serial runs. `tests/conftest.py` seeds the shared
-`retest.*` account and two plan documents that several tests assume. The demo admin login the
+`retest.*` account and two plan documents that several tests assume. A few tests
+(`test_llm_adapter`, `test_chat_context`, `test_plan_extract`) exercise pure helpers and do not
+need the server. The demo admin login the
 tests use is in [docs/test_credentials.md](docs/test_credentials.md) and needs the matching
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `backend/.env`.
 
@@ -106,3 +131,9 @@ secrets: `MONGO_URL` (an Atlas user with `readWrite` on `fin`, not an admin user
 and `CORS_ORIGINS`. `JWT_SECRET` is generated. In Atlas, allow Render's outbound IPs under
 **Network Access**. The frontend is deployed separately and proxies `/api/*` to the Render URL, so the
 browser sees a single origin and cookies work without CORS changes.
+
+## Deploying the frontend (Vercel)
+
+Point a Vercel project at `frontend/`. `frontend/vercel.json` sets `npm install --legacy-peer-deps`,
+`npm run build`, the `dist` output, the `/api/*` rewrite to the Render URL, and an SPA fallback to
+`index.html`. If the Render service URL changes, update the rewrite destination there.
