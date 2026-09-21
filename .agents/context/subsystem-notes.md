@@ -44,6 +44,17 @@ history and excerpts. `sources` = plan titles the answer names (`cited_titles`),
 Any LLM exception falls back to `_general_profile_answer` with `fallback: true`. The pure helpers live in
 `lib/chat_context.py` (unit tests: `tests/test_chat_context.py`, no server needed).
 
+## Plan cards (`lib/plan_extract.py`, `routers/admin.py`, `routers/plans.py`)
+- The LLM's JSON is untrusted: `normalize_plan` cleans it and turns anything unreliable into `null` /
+  "Not stated in the document" (never guesses csr or premium). `extract_plan` never raises: no key, model
+  error, 45 s timeout or a non term/health document all return `None`, so an upload is never blocked.
+- `plan_status` lives on `rag_documents` (not the chunk `status`, which means indexed/disabled). Customers
+  only see `published` cards whose document is `enabled`; pausing a document hides its card, deleting it removes it.
+- `rag_chunks` now carry `position`; re-extraction rebuilds the text from chunks sorted by it (older chunks
+  without it fall back to insertion order, and the 120-word overlap means some text repeats, which is harmless).
+- The plan card shows on the Insurance page only when at least one card is published; otherwise the
+  hardcoded samples (`routers/profile.py::_plans`, `frontend/src/lib/sampleData.ts`) show.
+
 ## LLM seam (`backend/lib/llm.py`)
 `_client()` is the patch point for tests (they stub it; nothing calls the network). Any
 exception inside the streaming block in `chat.py` falls through to the deterministic fallback

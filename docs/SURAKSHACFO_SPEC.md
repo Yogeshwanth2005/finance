@@ -14,8 +14,8 @@ SurakshaCFO is an India/INR family financial protection planner. A household ent
 ## Key flows
 1. `/` creates or edits the signed-in user's profile in four steps and saves it through `POST /api/profile`; profile values are loaded from the account, never another browser user's draft.
 2. `/dashboard` loads `GET /api/profile` and shows the protection score, cashflow, gaps, emergency fund and mutual-fund allocation direction.
-3. `/insurance` shows plan filters, comparison guidance and streams contextual answers through `POST /api/chat/stream`.
-4. `/admin/documents` is the admin operations workspace: each metric opens its live detail view (customers, completed profiles, per-source chunks, recent questions), alongside document ingestion, source pause/reactivate controls and safe source deletion.
+3. `/insurance` shows plan filters, comparison guidance and streams contextual answers through `POST /api/chat/stream`. Plan cards come from `GET /api/plans` (cards an admin published from indexed documents; the illustrative samples show until there are any). Clicking a card opens its details and an "Ask the advisor about this plan" shortcut.
+4. `/admin/documents` is the admin operations workspace: each metric opens its live detail view (customers, completed profiles, per-source chunks, recent questions), alongside document ingestion, source pause/reactivate controls and safe source deletion. Indexing a document also drafts a plan card (Gemini extraction when a key is set; values the document does not state stay "Not stated"). The admin reviews and edits the card, then publishes it; only published cards from active documents reach customers, and a card can also be entered by hand without a key.
 5. `/account` is the user profile and settings workspace. The profile icon sits beside language/logout and lets users update display name, preferred language, reminder/privacy preferences, password, and reopen their saved family/financial details for editing.
 
 ## Recommendation rules
