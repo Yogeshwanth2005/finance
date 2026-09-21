@@ -39,9 +39,11 @@ def test_chat_answers_with_citation_from_indexed_document(client):
     assert user_token, "Expected access_token cookie on register"
     user_header = {"Authorization": f"Bearer {user_token}"}
 
+    # Retrieval is title-gated (see test_tscheck_plan_specific_retrieval_gating): the question must name the
+    # document. Old test docs share title words, so also include the unique term to rank this doc's chunk first.
     resp = client.post(
         "/chat/stream",
-        json={"question": f"What does the {unique_term} Term Shield policy cover?"},
+        json={"question": f"What does the {title} policy say about the {unique_term} Term Shield?"},
         headers=user_header,
     )
     assert resp.status_code == 200, resp.text
@@ -69,5 +71,7 @@ def test_chat_does_not_invent_when_no_source(client):
     assert resp.status_code == 200, resp.text
     raw = resp.text
     assert "data:" in raw
-    # When no relevant source is retrieved, the fallback explicitly refuses to invent an answer.
-    assert "will not invent" in raw.lower() or "documents do not establish" in raw.lower() or "once an admin indexes" in raw.lower()
+    # A question that names no indexed document is answered from the profile only: no document is cited
+    # and nothing is said about the unknown policy.
+    assert '"sources": ["your financial profile"]' in raw.lower()
+    assert nonsense.lower() not in raw.lower()

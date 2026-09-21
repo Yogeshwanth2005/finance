@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 import uuid
@@ -14,6 +15,8 @@ from lib.db import db
 JWT_ALGORITHM = "HS256"
 ACCESS_MINUTES = 30
 REFRESH_DAYS = 7
+
+logger = logging.getLogger(__name__)
 
 
 def hash_password(password: str) -> str:
@@ -97,8 +100,11 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
 
 
 async def seed_admin() -> None:
-    email = os.environ.get("ADMIN_EMAIL", "admin@surakshacfo.demo").lower()
-    password = os.environ.get("ADMIN_PASSWORD", "DemoAdmin!2026")
+    email = os.environ.get("ADMIN_EMAIL", "").lower()
+    password = os.environ.get("ADMIN_PASSWORD", "")
+    if not email or not password:
+        logger.warning("ADMIN_EMAIL/ADMIN_PASSWORD not set; skipping admin seed")
+        return
     existing = await db.users.find_one({"email": email})
     if existing:
         if not verify_password(password, existing["password_hash"]):

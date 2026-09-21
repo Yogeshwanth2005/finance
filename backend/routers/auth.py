@@ -32,7 +32,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _public(user: dict) -> UserPublic:
     return UserPublic(
-        id=user.get("id", user["_id"]),
+        id=user["id"] if "id" in user else user["_id"],
         name=user["name"],
         email=user["email"],
         role=user.get("role", "user"),

@@ -60,22 +60,15 @@ def test_login_rejects_wrong_password(client):
     assert resp.status_code == 401, resp.text
 
 
-def test_auth_me_endpoint_crashes_bug(client):
-    """BUG: GET /auth/me returns 500 for any authenticated user.
-
-    routers/auth.py `_public()` does `user.get("id", user["_id"])`; Python evaluates the
-    default argument `user["_id"]` eagerly even when "id" is present, and the dict built by
-    get_current_user() only has an "id" key (no "_id"), so this always raises KeyError.
-    The frontend does not currently call /auth/me (it uses /auth/session), so this does not
-    block the acceptance criterion, but the endpoint itself is broken for any caller.
-    """
+def test_auth_me_returns_current_user(client):
     email = _unique_email()
     password = "TestPass!2026"
-    resp = client.post("/auth/register", json={"name": "Bug Check", "email": email, "password": password})
+    resp = client.post("/auth/register", json={"name": "Me Check", "email": email, "password": password})
     assert resp.status_code == 200, resp.text
     token = client.cookies.get("access_token")
     resp = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 500, "Expected the known 500 bug on /auth/me; if this now passes, the bug is fixed"
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["email"] == email
 
 
 def test_duplicate_registration_rejected(client):
