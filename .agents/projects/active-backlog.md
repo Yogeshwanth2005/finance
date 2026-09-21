@@ -20,6 +20,15 @@ git tag `pre-finance-swap`.
   2026-09-17/18 entries for the narrowing history before resuming. No design, schema or code exists.
 
 ## Known Tech Debt
+- **Atlas is provisioned but the app still runs on local mongod.** Project 0 / `Cluster0` (free M0,
+  ap-south-1) has a `fin` DB holding only the seeded admin (inserted via the Atlas MCP connector).
+  To switch, set `MONGO_URL` in `backend/.env`; the backend then creates the other collections and
+  indexes on first start. Blockers/loose ends: (1) this machine's egress IP rotates across several
+  addresses, so a single-IP Network Access entry fails the TLS handshake intermittently (use a stable
+  network, or a temporary `0.0.0.0/0` with an expiry); (2) the only DB user is `atlasAdmin`, so
+  create a `readWrite`-on-`fin` user for the app; (3) `~/Downloads/atlas-credentials.env` holds the
+  password in plaintext; (4) `.mcp.json` (read-only `mongodb-mcp-server`, needs
+  `MDB_MCP_CONNECTION_STRING`) is uncommitted and unused while the claude.ai Atlas connector works.
 - **`finance/` folder still on disk**: it holds the original Emergent export, including a plaintext
   `EMERGENT_LLM_KEY` and `JWT_SECRET` in its `.env` files. Delete it once the backup is no longer
   needed (then drop the `finance` line from `.gitignore`).
