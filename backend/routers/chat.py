@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from lib.auth import get_current_user
 from lib.db import db
-from lib.chat_context import HISTORY_LIMIT, build_retrieval_query, cited_titles, format_history
+from lib.chat_context import HISTORY_LIMIT, SCOPE_RULES, build_retrieval_query, cited_titles, format_history
 from lib.llm import llm_configured, stream_answer
 from lib.rag import retrieve, retrieve_across_documents
 from models.profile import ProfileInput
@@ -148,9 +148,10 @@ def _profile_context(profile: ProfileInput | None) -> str:
 
 def _open_system_message(language_name: str, profile_context: str, conversation: str, source_context: str) -> str:
     return (
-        "You are SurakshaCFO's friendly personal-finance and insurance advisor for an Indian family. Answer every question the user asks, "
+        "You are SurakshaCFO's friendly personal-finance and insurance advisor for an Indian family. Answer every in-scope question the user asks, "
         "whether it is general finance or insurance knowledge or about specific plans. Be direct and concise, and give a clear recommendation "
         "when asked which option to take, with reasons tied to the user's profile.\n"
+        f"{SCOPE_RULES}\n"
         "- Use the user's profile and the recent conversation to personalise the answer and to resolve follow-ups such as 'which should I take'.\n"
         "- INDEXED PLAN DOCUMENTS below are the plans on this platform. For questions about choosing, comparing or coverage of plans, use them: "
         "name each plan by its exact title and state only facts found in the excerpts. If the excerpts do not state something (premium, waiting period, exclusions), say so. "
