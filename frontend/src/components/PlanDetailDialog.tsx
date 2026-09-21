@@ -69,33 +69,25 @@ function PlanDetailBody({ plan, analysis, onAsk }: { plan: Plan; analysis: Finan
       )}
       {plan.fit && <p className="text-sm leading-6 text-[#5c5f66]">{plan.fit}</p>}
 
-      {plan.details ? (
-        <dl className="divide-y divide-[#f1efe9] rounded-xl border border-[#e4e1d8]" data-testid="plan-detail-fields">
-          {DETAIL_ROWS.map(([key, label]) => {
-            const value = plan.details?.[key] ?? NOT_STATED;
-            return (
-              <div key={key} className="grid gap-1 p-3 sm:grid-cols-[9rem_1fr]">
-                <dt className="text-xs font-semibold text-[#8a8f99]">{label}</dt>
-                <dd className={`text-sm leading-6 ${value === NOT_STATED ? "text-[#8a8f99]" : "text-[#17181c]"}`}>{value}</dd>
-              </div>
-            );
-          })}
-        </dl>
-      ) : (
-        <p className="rounded-lg border border-dashed border-[#c8c4b7] bg-[#f8f7f4] p-3 text-xs leading-5 text-[#5c5f66]" data-testid="plan-detail-sample-note">
-          This is an illustrative sample plan. Once an admin publishes a plan from an indexed document, its real details appear here.
-        </p>
-      )}
+      <dl className="divide-y divide-[#f1efe9] rounded-xl border border-[#e4e1d8]" data-testid="plan-detail-fields">
+        {DETAIL_ROWS.map(([key, label]) => {
+          const value = plan.details[key];
+          return (
+            <div key={key} className="grid gap-1 p-3 sm:grid-cols-[9rem_1fr]">
+              <dt className="text-xs font-semibold text-[#8a8f99]">{label}</dt>
+              <dd className={`text-sm leading-6 ${value === NOT_STATED ? "text-[#8a8f99]" : "text-[#17181c]"}`}>{value}</dd>
+            </div>
+          );
+        })}
+      </dl>
 
       <div className="flex flex-col gap-3 border-t border-[#f1efe9] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[11px] leading-5 text-[#8a8f99]">
-          {plan.source_title ? `Source document: ${plan.source_title}. ` : ""}Extracted from the insurer’s document and reviewed by an admin. Verify the current policy wording before buying.
+          Source document: {plan.source_title}. Extracted from the insurer’s document and reviewed by an admin. Verify the current policy wording before buying.
         </p>
-        {plan.source_title && (
-          <Button type="button" className="shrink-0 bg-[#0d7a5f] text-white hover:bg-[#0a624c]" onClick={() => onAsk(`What are the key features, exclusions and waiting periods of ${plan.source_title}?`)} data-testid="plan-detail-ask-button">
-            <MessageCircle className="size-4" /> Ask the advisor about this plan
-          </Button>
-        )}
+        <Button type="button" className="shrink-0 bg-[#0d7a5f] text-white hover:bg-[#0a624c]" onClick={() => onAsk(`What are the key features, exclusions and waiting periods of ${plan.source_title}?`)} data-testid="plan-detail-ask-button">
+          <MessageCircle className="size-4" /> Ask the advisor about this plan
+        </Button>
       </div>
     </>
   );

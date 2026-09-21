@@ -52,7 +52,7 @@ export default function Insurance() {
   const response = profileQuery.data ?? SAMPLE_PROFILE_RESPONSE;
   const [filter, setFilter] = useState<"all" | "term" | "health">("all");
   const [compare, setCompare] = useState(false);
-  // Cards an admin published from indexed documents; the illustrative samples show until there are any.
+  // Only cards an admin reviewed and published from indexed documents.
   const plansQuery = useQuery({ queryKey: ["plans"], queryFn: () => apiGet<Plan[]>("/plans"), retry: false });
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [question, setQuestion] = useState("");
@@ -69,9 +69,13 @@ export default function Insurance() {
     const list = messageListRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [messages.length, lastMessageText]);
-  const livePlans = plansQuery.data ?? [];
-  const usingLivePlans = livePlans.length > 0;
-  const plans = (usingLivePlans ? livePlans : response.plans).filter((plan) => filter === "all" || plan.category === filter);
+  const publishedPlans = plansQuery.data ?? [];
+  const plans = publishedPlans.filter((plan) => filter === "all" || plan.category === filter);
+  const plansEmptyMessage = plansQuery.isError
+    ? "We could not load the plans. Please refresh and try again."
+    : publishedPlans.length === 0
+      ? "No plans have been published yet. An admin adds plans by indexing an insurance document and publishing its card."
+      : `No ${filter} plans published yet.`;
   const prompts = [t("promptTerm"), t("promptCompare"), t("promptCritical")];
   if (user && user.role !== "admin" && !user.profile_complete) return <Navigate to="/" replace />;
 
@@ -107,11 +111,11 @@ export default function Insurance() {
           <Card className="border-[#e4e1d8] bg-[#17181c] text-white shadow-none" data-testid="insurance-gap-summary-card"><CardContent className="p-6"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#a8d9c8]" data-testid="insurance-gap-summary-label">Profile-led starting point</p><div className="mt-5 grid grid-cols-2 gap-5"><div><p className="font-mono text-2xl font-bold" data-testid="insurance-term-gap-summary">{response.analysis.term_gap_crore.toFixed(2)} Cr</p><p className="mt-1 text-xs text-white/55">additional term</p></div><div><p className="font-mono text-2xl font-bold" data-testid="insurance-health-gap-summary">{response.analysis.health_gap_lakh} L</p><p className="mt-1 text-xs text-white/55">additional health</p></div></div></CardContent></Card>
         </div>
 
-        <div className="mt-12 flex flex-col justify-between gap-4 border-b border-[#e4e1d8] pb-4 sm:flex-row sm:items-end" data-testid="insurance-plans-toolbar"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8a8f99]">Compare with context</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="insurance-plans-heading">{usingLivePlans ? "Plans from your indexed documents" : "Illustrative plan shortlist"}</h2></div><div className="flex items-center gap-2"><div className="flex rounded-lg border border-[#e4e1d8] bg-white p-1" data-testid="insurance-filter-tabs">{(["all", "term", "health"] as const).map((item) => <button type="button" key={item} onClick={() => setFilter(item)} className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${filter === item ? "bg-[#17181c] text-white" : "text-[#5c5f66] hover:bg-[#f1efe9]"}`} data-testid={`insurance-filter-${item}-button`}>{item}</button>)}</div><Button variant={compare ? "default" : "outline"} size="sm" onClick={() => setCompare((current) => !current)} data-testid="insurance-compare-button"><GitCompareArrows className="size-3.5" /> {compare ? "Close compare" : "Compare two"}</Button></div></div>
+        <div className="mt-12 flex flex-col justify-between gap-4 border-b border-[#e4e1d8] pb-4 sm:flex-row sm:items-end" data-testid="insurance-plans-toolbar"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8a8f99]">Compare with context</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="insurance-plans-heading">Plans from your indexed documents</h2></div><div className="flex items-center gap-2"><div className="flex rounded-lg border border-[#e4e1d8] bg-white p-1" data-testid="insurance-filter-tabs">{(["all", "term", "health"] as const).map((item) => <button type="button" key={item} onClick={() => setFilter(item)} className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${filter === item ? "bg-[#17181c] text-white" : "text-[#5c5f66] hover:bg-[#f1efe9]"}`} data-testid={`insurance-filter-${item}-button`}>{item}</button>)}</div><Button variant={compare ? "default" : "outline"} size="sm" onClick={() => setCompare((current) => !current)} data-testid="insurance-compare-button"><GitCompareArrows className="size-3.5" /> {compare ? "Close compare" : "Compare two"}</Button></div></div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {plans.map((plan) => <PlanCard key={plan.id} plan={plan} analysis={response.analysis} onOpen={setSelectedPlan} />)}
-          {plans.length === 0 && <p className="rounded-xl border border-dashed border-[#c8c4b7] bg-[#f8f7f4] p-8 text-center text-sm text-[#8a8f99] md:col-span-2" data-testid="insurance-plans-empty">No {filter} plans published yet.</p>}
+          {plans.length === 0 && !plansQuery.isLoading && <p className="rounded-xl border border-dashed border-[#c8c4b7] bg-[#f8f7f4] p-8 text-center text-sm text-[#8a8f99] md:col-span-2" data-testid="insurance-plans-empty">{plansEmptyMessage}</p>}
         </div>
         <PlanDetailDialog plan={selectedPlan} analysis={response.analysis} onClose={() => setSelectedPlan(null)} onAsk={(text) => { setSelectedPlan(null); document.getElementById("cfo-chatbot")?.scrollIntoView({ behavior: "smooth" }); void ask(text); }} />
 

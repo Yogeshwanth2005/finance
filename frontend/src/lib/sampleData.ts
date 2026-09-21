@@ -62,52 +62,6 @@ export const SAMPLE_PROFILE_RESPONSE: ProfileResponse = {
     disclaimer:
       "Educational estimates only. They are not financial, tax, medical, or insurance advice. Verify policy terms, exclusions, underwriting, claim experience, and premiums with a licensed advisor before buying.",
   },
-  plans: [
-    {
-      id: "term-1",
-      category: "term",
-      name: "Click 2 Protect Super",
-      provider: "HDFC Life",
-      csr: "99.2%",
-      annual_premium_from: 18500,
-      cover_label: "Illustrative term cover",
-      highlights: ["Flexible payout options", "Income replacement focus", "Optional riders"],
-      fit: "Best for income replacement and long-term family protection",
-    },
-    {
-      id: "term-2",
-      category: "term",
-      name: "iProtect Smart",
-      provider: "ICICI Prudential",
-      csr: "98.3%",
-      annual_premium_from: 17200,
-      cover_label: "Illustrative term cover",
-      highlights: ["Multiple claim payout choices", "Terminal illness benefit", "Digital servicing"],
-      fit: "A lower-premium option to compare with your protection gap",
-    },
-    {
-      id: "health-1",
-      category: "health",
-      name: "Optima Secure",
-      provider: "HDFC ERGO",
-      csr: "98.6%",
-      annual_premium_from: 26500,
-      cover_label: "Illustrative family floater",
-      highlights: ["Restore benefit", "No room-rent cap", "Super top-up compatible"],
-      fit: "Strong floater baseline for growing families",
-    },
-    {
-      id: "health-2",
-      category: "health",
-      name: "Care Supreme",
-      provider: "Care Health",
-      csr: "96.6%",
-      annual_premium_from: 22800,
-      cover_label: "Illustrative family floater",
-      highlights: ["Unlimited recharge", "Wellness benefits", "Wide hospital network"],
-      fit: "Value-led cover when the emergency fund is still being built",
-    },
-  ],
 };
 
 export const formatINR = (value: number, compact = false) =>

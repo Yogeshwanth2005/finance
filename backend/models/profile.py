@@ -43,18 +43,6 @@ class FamilyProfile(ProfileInput):
     id: str
 
 
-class Plan(BaseModel):
-    id: str
-    category: str
-    name: str
-    provider: str
-    csr: str
-    annual_premium_from: float
-    cover_label: str
-    highlights: list[str]
-    fit: str
-
-
 class ProfileKpis(BaseModel):
     emergency_coverage_pct: float
     runway_months: float
@@ -91,7 +79,6 @@ class FinancialAnalysis(BaseModel):
 class ProfileResponse(BaseModel):
     profile: FamilyProfile
     analysis: FinancialAnalysis
-    plans: list[Plan]
 
 
 class ChatQuestion(BaseModel):

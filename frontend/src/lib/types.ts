@@ -50,11 +50,10 @@ export interface PlanCardData {
   details: PlanDetails;
 }
 
-// A card on the Insurance page. The illustrative samples have no details or source document.
-export interface Plan extends Omit<PlanCardData, "details"> {
+// A published card on the Insurance page: `id` and `source_title` identify the indexed document it came from.
+export interface Plan extends PlanCardData {
   id: string;
-  details?: PlanDetails;
-  source_title?: string;
+  source_title: string;
 }
 
 export type PlanStatus = "none" | "draft" | "published";
@@ -95,7 +94,6 @@ export interface ProfileKpis {
 export interface ProfileResponse {
   profile: FamilyProfile;
   analysis: FinancialAnalysis;
-  plans: Plan[];
 }
 
 export interface ChatResponse {
