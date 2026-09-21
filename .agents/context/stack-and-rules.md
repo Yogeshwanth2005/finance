@@ -1,36 +1,38 @@
 # Invariants, Tech Stack & File Map
 
 ## Tech Stack
-- Frontend: Vite + React 18 + Tailwind CSS 4 (`frontend/src/`)
-- Backend: Python 3.12 + FastAPI + SQLAlchemy 2.0 (`backend/app/`)
-- Database: PostgreSQL via **Supabase**, with Alembic migrations (`backend/alembic/`) and SQLite support for offline dev/tests
-- Auth / Session: Demo user session via `fin_demo_user_id` cookie (HttpOnly, SameSite=Lax)
-- Testing: `pytest` for backend (42 tests), `vitest` for frontend (12 tests)
-- No ML libraries, no LLM API calls anywhere in the core engines — every financial calculation is deterministic (implementationplanv2.md Section 1)
+- Frontend: Vite 8 + React 19 + TypeScript + Tailwind v4 + shadcn/ui, react-router-dom, TanStack Query, i18n for en/hi/te/ta (`frontend/src/`). Package manager is **npm** (`npm install --legacy-peer-deps`).
+- Backend: Python 3.12 + FastAPI + Motor (async MongoDB) + Pydantic v2 (`backend/`)
+- Database: MongoDB (`MONGO_URL`, `DB_NAME`). No migrations; indexes are declared in `backend/lib/db.py` `INDEXES` and applied at startup.
+- Auth: JWT access/refresh tokens in HttpOnly cookies (PyJWT + bcrypt), roles `user` / `admin`. A `Bearer` header is also accepted (the tests use it).
+- LLM: Gemini through `backend/lib/llm.py` (`google-genai`), optional. RAG uses local 128-dim hashed bag-of-words vectors stored in Mongo, cosine in Python.
+- Testing: pytest against a live uvicorn (32 tests), Playwright workspace in `tests/` (no specs yet).
+- Behaviour spec: `docs/SURAKSHACFO_SPEC.md`.
 
 ## Hard Invariants
-1. **Quoted Column Names in SQLAlchemy**: Postgres schema columns use camelCase (`"monthlyIncome"`, `"emergencyFundMonths"`). All SQLAlchemy models in `backend/app/models.py` map to exact quoted names matching the PostgreSQL database schema.
-2. **`DEMO_MODE` Regulatory Compliance Gate** (`backend/app/config.py`): Sections 5.2/6.2/6.3 (named fund and insurance plan examples) must stay strictly behind this boolean flag. Showing named financial products without SEBI RIA / IRDAI web-aggregator licensing is only permitted while this stays a private portfolio/educational demo. When `DEMO_MODE=false`, named fund and insurance examples are completely omitted from both the raw `GET /api/dashboard` JSON response and UI rendering.
-3. **No ML/LLM Calls in Core Engine**: `gap_analysis.py`, `allocation.py`, and `insurance_matching.py` logic are pure, deterministic functions.
-4. **Rule-Based Reference Matching**: Fund/insurance example selection is rule-based (sorted by AUM / sum-assured proximity) — never a ranked "best pick" or subjective score, to avoid crossing into personalized advice liabilities under SEBI/IRDAI regulations.
+1. **MongoDB only**: use `from lib.db import db`; never construct another `AsyncIOMotorClient`. No SQL/ORM/migration tooling (Supabase, SQLAlchemy, Alembic, Prisma) may come back.
+2. **Every route is under `/api`**: one `APIRouter(prefix="/api")` in `server.py`. The frontend calls only relative `/api/...` paths through the Vite proxy to `http://localhost:8001`.
+3. **String `uuid4` ids** (`_id` / `id`); never `ObjectId` in a response.
+4. **`lib/llm.py` is the only module that knows about Gemini.** With no `GEMINI_API_KEY` chat falls back to a deterministic, localized answer; that path must keep working.
+5. **Chat retrieval is title-gated**: documents are retrieved only when the question names an indexed plan/provider or asks for a comparison (`_matching_document_ids` in `routers/chat.py`). General questions are answered from the profile alone.
+6. **`seed_admin` never invents credentials**: it seeds only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
+7. **Backend tests hit a live server** at `BACKEND_URL` (default `http://localhost:8001`). `pytest.ini` keeps `-n 2 --dist loadscope` and `asyncio_mode = auto`.
+8. **Frontend typecheck is `npx tsc -b --noEmit`** (`npm run typecheck`); plain `tsc --noEmit` checks zero files.
+9. **`.env*` stays git-ignored** (only `.env.example` is tracked). Never commit keys.
 
 ## File Map
-- `backend/app/config.py` — editable tunable constants & `DEMO_MODE` gate
-- `backend/app/db.py` — SQLAlchemy async engine and session dependency
-- `backend/app/models.py` — SQLAlchemy ORM models matching database schema
-- `backend/app/demo_user.py` — demo session tracking via `fin_demo_user_id` cookie
-- `backend/app/services/gap_analysis.py` (+ `tests/test_gap_analysis.py`) — deterministic gap analysis engine
-- `backend/app/services/allocation.py` (+ `tests/test_allocation.py`) — asset allocation engine
-- `backend/app/services/insurance_matching.py` (+ `tests/test_insurance_matching.py`) — insurance reference matcher
-- `backend/app/routers/onboarding.py` — `POST /api/onboarding/submit` endpoint
-- `backend/app/routers/dashboard.py` — `GET /api/dashboard` endpoint
-- `backend/app/seed.py` — AMFI mutual funds and insurance reference seeder
-- `frontend/src/App.jsx` — React Router SPA shell
-- `frontend/src/pages/Home.jsx` — landing page
-- `frontend/src/pages/Onboarding.jsx` — disclaimer gate (Section 3)
-- `frontend/src/pages/onboarding/OnboardingWizard.jsx` — 5-step onboarding intake wizard
-- `frontend/src/pages/onboarding/screens.jsx` — individual wizard step forms and validators
-- `frontend/src/pages/Dashboard.jsx` — dashboard rendering 5 KPI ring meters, asset allocation snapshot, and `DEMO_MODE`-gated comparison cards
-- `frontend/src/components/KpiCard.jsx`, `FundCard.jsx`, `InsuranceCard.jsx` — dashboard card components
-- `frontend/src/lib/format.js` — Indian numbering / Rupee currency formatting utilities
-- `implementationplanv2.md` — full product spec and regulatory reasoning
+- `backend/server.py` — app, CORS, index/admin startup, `api_router` mounting the four routers
+- `backend/routers/auth.py` — register, login/lockout, session/me/refresh, settings, password change/reset
+- `backend/routers/profile.py` — profile intake, dashboard analysis (`_analysis`), illustrative plans (`_plans`)
+- `backend/routers/chat.py` — streaming insurance chat, title-gated retrieval, comparison tables, fallbacks
+- `backend/routers/admin.py` — document upload/index/pause/delete, users, questions, overview
+- `backend/lib/db.py` — shared Motor handle and `INDEXES`
+- `backend/lib/auth.py` — password hashing, JWT cookies, `get_current_user`, `require_admin`, `seed_admin`
+- `backend/lib/rag.py` — text extraction, chunking, hashed embeddings, `retrieve`
+- `backend/lib/llm.py` — `llm_configured()`, `stream_answer()` (Gemini seam)
+- `backend/models/` — Pydantic request/response models
+- `backend/tests/` — pytest specs; `conftest.py` seeds the shared `retest.*` account and two plan documents
+- `frontend/src/App.tsx` — routes only; pages in `frontend/src/pages/` (Home, Login, ResetPassword, Dashboard, Insurance, Account, AdminDocuments)
+- `frontend/src/lib/` — `api.ts` typed fetch layer, `auth.tsx`, `i18n.ts`, plus `lucide-react.tsx` / `recharts.tsx` wrappers aliased in `vite.config.ts`
+- `tests/` — Playwright workspace (`playwright.config.ts`, `fixtures/helpers.ts`, `e2e/`)
+- `docs/SURAKSHACFO_SPEC.md`, `docs/test_credentials.md` — spec and demo admin login

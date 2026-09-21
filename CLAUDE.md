@@ -1,8 +1,9 @@
-# Fin — Personal Finance Educational Demo (v2)
+# Fin — SurakshaCFO Personal Finance Educational Demo
 
-FastAPI + React app implementing `implementationplanv2.md` — a
-deterministic, no-ML financial gap-analysis/allocation tool built as a
-personal/portfolio demo (not a live financial or insurance service).
+FastAPI + Motor/MongoDB backend and Vite/React frontend implementing
+`docs/SURAKSHACFO_SPEC.md` — a family-finance gap-analysis, allocation and
+insurance-document Q&A tool built as a personal/portfolio demo (not a live
+financial or insurance service).
 
 ## How to Work Efficiently (low context — this is the DEFAULT, no need to be told)
 - The brain is **queried, not loaded**. Never read whole files or the whole `.agents/` tree "to get context."
@@ -18,10 +19,10 @@ To prevent context dilution, general invariants and rules are split into modular
     *   Read when: Starting a new session or reviewing coding style, formatting, and response conventions.
 2.  **Invariants, Tech Stack & File Map**:
     *   Location: `.agents/context/stack-and-rules.md`
-    *   Read when: Touching Prisma/DB calls, the `DEMO_MODE` regulatory gate, auth, or routing.
-3.  **Historical Decisions & Migrations**:
+    *   Read when: Touching MongoDB calls, the Gemini/`lib/llm.py` seam, chat retrieval, auth, or routing.
+3.  **Historical Decisions**:
     *   Location: `.agents/decisions/log.md`
-    *   Read when: Seeking context on why a module was built/dropped, or checking migration history.
+    *   Read when: Seeking context on why a module was built/dropped or a stack was replaced. (Its migration index is history for the retired Prisma/Alembic stack; the app has no migrations.)
 4.  **Active Roadmap & Technical Debt**:
     *   Location: `.agents/projects/active-backlog.md`
     *   Read when: Checking current backlog tasks or known tech debt.

@@ -1,4 +1,4 @@
-# SurakshaCFO MVP Spec (Integrated Reference for Fin v2)
+# SurakshaCFO MVP Spec
 
 ## What it does
 SurakshaCFO is an India/INR family financial protection planner. A household enters a basic family profile, income, liabilities, existing protection, liquid savings and investments. The app returns a dashboard with rule-based term-insurance, health-cover, emergency-fund and investable-surplus analysis, then offers illustrative plan comparisons and a profile-aware insurance chat surface.
@@ -6,6 +6,7 @@ SurakshaCFO is an India/INR family financial protection planner. A household ent
 ## Data model
 - `ProfileInput` / `FamilyProfile`: family demographics, employment and household income, expenses, loans, existing cover, emergency savings and investments.
 - `FinancialAnalysis`: annual cashflow, liabilities, protection score, term and health gaps, six-month emergency-fund goal, insurance budget and investable surplus.
+- `ProfileKpis`: eight neutral profile metrics—emergency coverage %, runway months, term adequacy %, health adequacy %, savings rate %, debt-to-income %, cover-to-liabilities ratio and liabilities-to-income multiple.
 - `Plan`: illustrative term/health plan comparison data.
 - `DocumentRecord` and vector chunks: admin-controlled insurance knowledge sources with active/paused status.
 - `ChatMessageRecord`: per-account questions, streamed grounded answers and cited source titles.
@@ -23,19 +24,28 @@ SurakshaCFO is an India/INR family financial protection planner. A household ent
 - Emergency fund = 6× monthly household expenses.
 - Investable surplus = annual income − expenses − EMIs − illustrative insurance budget, floored at zero.
 
+## Profile KPI rules
+- Emergency coverage % = emergency savings ÷ (6 × monthly expenses) × 100; runway = emergency savings ÷ monthly expenses.
+- Term adequacy % = existing term cover ÷ recommended term cover × 100; health adequacy % = current health cover ÷ recommended health cover × 100.
+- Savings rate % = (household income − annual expenses − annual EMI) ÷ household income × 100.
+- Debt-to-income % = monthly EMI ÷ monthly household income × 100. The displayed 40–50% line is explicitly illustrative, not advice.
+- Cover-to-liabilities = existing term cover ÷ total liabilities; liabilities-to-income = total liabilities ÷ annual household income.
+- Zero denominators return 0. KPIs show plain numbers and rupee context only—no ranking or good/bad verdict.
+
 ## Auth and roles
 - Email/password accounts use secure httpOnly access and refresh cookies. Signup leads to the family profile; completed users land on their dashboard. Password reset is available as a demo-token flow until an email provider is connected.
 - Each user owns one private profile, including separate spouse identity, employment and income details when both partners work.
 - New users see only Profile navigation until submission; Dashboard and Insurance navigation appear after completion. Direct access remains guarded.
 - Selecting Single hides and clears every spouse field while keeping the children/parents dependents question visible.
 - User preferences persist per account: display name, English/Hindi/Telugu/Tamil, reminder preference and enhanced-privacy preference. Password changes require the current password.
-- Admin role lands directly on `/admin/documents`; user navigation is hidden there. Admins can index PDF, TXT, DOCX and public web sources, monitor users, pause outdated sources and delete a source with all of its chunks.
+- Admin role lands directly on `/admin/documents`; user navigation is hidden there. Admins can index PDF, TXT, DOCX and public web sources, monitor users, pause outdated sources and delete a source with all of its chunks. Demo admin credentials are in `memory/test_credentials.md`.
 - Google sign-in is intentionally pending because OAuth credentials were not supplied.
 
 ## RAG chatbot
-- Admin documents are extracted, chunked and stored with deterministic local vectors. Paused sources are excluded from retrieval immediately.
-- User questions retrieve the most relevant indexed chunks, add the user's financial analysis context, and return grounded answers based only on those sources.
-- General education questions (for example, why term insurance matters) use only the signed-in family's profile and never name a policy. Document retrieval is activated only when the user names a plan/provider or asks for policy lookup.
-- In Fin v2, regulatory guardrails intercept subjective recommendations, ranking, or scoring requests (Fin Invariant 4).
-- If no relevant source exists or LLM is unavailable, the chatbot explicitly falls back without inventing policy details.
+- Admin documents are extracted, chunked and stored in MongoDB with deterministic local vectors. Paused sources are excluded from retrieval immediately.
+- User questions retrieve the most relevant indexed chunks, add the user's financial analysis context, and stream a Gemini answer grounded only in those sources.
+- General education questions (for example, why term insurance matters) use only the signed-in family's profile and never name a policy. Document retrieval is activated only when the user names a plan/provider or explicitly asks for a comparison.
+- Comparison requests are rendered as real tables. Missing policy facts are labelled as not stated rather than inferred.
+- RAG retrieval continues over English source documents, but Gemini answers in the account's saved language. Plan/provider names, source titles, monetary values and legal identifiers remain unchanged; general profile-based answers are also localized.
+- If no relevant source exists or Gemini is unavailable, the chatbot explicitly falls back without inventing policy details.
 - Chat history and cited source titles persist per account.

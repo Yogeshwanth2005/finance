@@ -1,0 +1,97 @@
+# Fin (SurakshaCFO)
+
+A personal-finance and insurance-gap demo: a family enters its finances, gets a protection
+score and a mutual-fund allocation estimate, and asks an insurance advisor questions that are
+answered from admin-indexed policy documents. Behaviour is specified in
+[docs/SURAKSHACFO_SPEC.md](docs/SURAKSHACFO_SPEC.md).
+
+> Educational estimates only; not financial, tax, medical or insurance advice.
+
+**FastAPI + MongoDB** backend behind a **Vite + React 19 + TypeScript** frontend, joined by a
+small typed fetch layer over `/api`.
+
+## Layout
+
+```
+backend/   FastAPI + Motor (async MongoDB) + Pydantic v2
+  server.py    app, CORS, single APIRouter(prefix="/api")
+  routers/     auth, profile, chat, admin
+  lib/         db, auth (JWT cookies + bcrypt), rag (local hashed vectors), llm (Gemini seam), dates
+  models/      Pydantic request/response models
+  tests/       pytest, run against a live server
+frontend/  Vite + React 19 + Tailwind v4 + shadcn/ui, i18n (en / hi / te / ta)
+tests/     Playwright e2e workspace
+docs/      spec and demo credentials
+```
+
+## Running
+
+Needs Python 3.12, Node 22, and a MongoDB on `localhost:27017`. Copy `.env.example` to
+`backend/.env` and fill it in (see [Configuration](#configuration)).
+
+```bash
+# backend  ->  http://localhost:8001
+cd backend
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt      # Windows; .venv/bin/python elsewhere
+.venv/Scripts/python -m uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+
+# frontend  ->  http://localhost:3000
+cd frontend
+npm install --legacy-peer-deps      # plain `npm install` crashes npm 10's peer resolver on vitest
+npm run dev
+```
+
+Frontend checks: `npm run typecheck` (this is `tsc -b --noEmit`; plain `tsc --noEmit` checks
+zero files), `npm run lint`, `npm run build`.
+
+## The `/api` proxy convention
+
+Every backend route lives under `/api`, and the Vite dev server proxies `/api/*` to
+`http://localhost:8001`. Frontend code always calls a **relative** path such as `/api/profile`,
+never an absolute backend URL. Never hang a route directly off `app` in `server.py`; it would
+land outside `/api` and the proxy would not reach it.
+
+## Backend conventions
+
+- **MongoDB**: import the shared handle with `from lib.db import db`. Never build another
+  `AsyncIOMotorClient`. Indexes are declared in `lib/db.py` (`INDEXES`) and applied at startup.
+- **Ids**: documents use string `uuid4` ids (`_id` / `id`), never `ObjectId`, which is not
+  JSON-serialisable.
+- **LLM**: `lib/llm.py` is the only module that talks to Gemini. With no `GEMINI_API_KEY` the
+  chat degrades to a deterministic, localised fallback answer, so the app runs without a key.
+- **Chat retrieval** is title-gated: documents are only retrieved when the question names an
+  indexed plan/provider or asks for a comparison. General questions are answered from the
+  family's profile alone.
+- **Admin** is seeded only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
+
+## Testing
+
+**Backend (pytest)** hits a live uvicorn at `BACKEND_URL` (default `http://localhost:8001`), so
+start the backend first:
+
+```bash
+cd backend && .venv/Scripts/python -m pytest
+```
+
+`backend/pytest.ini` runs with `-n 2 --dist loadscope` (pytest-xdist) and
+`asyncio_mode = auto`; pass `-n 0` for serial runs. `tests/conftest.py` seeds the shared
+`retest.*` account and two plan documents that several tests assume. The demo admin login the
+tests use is in [docs/test_credentials.md](docs/test_credentials.md) and needs the matching
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` in `backend/.env`.
+
+**Frontend (Playwright)**: specs go in `tests/e2e/`; `playwright.config.ts` and
+`fixtures/helpers.ts` are the shared setup.
+
+## Configuration
+
+`backend/.env` (git-ignored; template in [.env.example](.env.example)):
+
+| Variable | Purpose |
+|---|---|
+| `MONGO_URL`, `DB_NAME` | MongoDB connection and database name |
+| `CORS_ORIGINS`, `APP_URL`, `FRONTEND_URL` | Allowed origins and app URLs. Keep `FRONTEND_URL` on `http://` locally, or auth cookies are marked `Secure` and plain-HTTP clients will not send them |
+| `JWT_SECRET` | Signs session tokens |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Seeded admin account; skipped if either is unset |
+| `GEMINI_API_KEY` | Optional; empty means deterministic fallback answers |
+| `GEMINI_MODEL` | Optional; defaults to `gemini-3-flash-preview` |
