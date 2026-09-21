@@ -7,6 +7,7 @@
 - Auth: JWT access/refresh tokens in HttpOnly cookies (PyJWT + bcrypt), roles `user` / `admin`. A `Bearer` header is also accepted (the tests use it).
 - LLM: Gemini through `backend/lib/llm.py` (`google-genai`), optional. RAG uses local 128-dim hashed bag-of-words vectors stored in Mongo, cosine in Python.
 - Testing: pytest against a live uvicorn (35 tests), Playwright workspace in `tests/` (no specs yet).
+- Hosting: frontend on Vercel (`frontend/vercel.json`), backend on Render (`render.yaml`), prod DB on Atlas `Cluster0`. Vercel rewrites `/api/*` to the Render URL so the browser sees one origin. Local dev uses local `mongod`.
 - Behaviour spec: `docs/SURAKSHACFO_SPEC.md`.
 
 ## Hard Invariants

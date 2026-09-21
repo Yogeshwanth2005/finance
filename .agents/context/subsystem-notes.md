@@ -52,6 +52,22 @@ Real streaming has not been verified without a live `GEMINI_API_KEY`.
   packages are reachable as `lucide-react-upstream` / `recharts-upstream`. Import the plain
   names in app code, never the `-upstream` ones.
 
+## Deployment (Render + Vercel + Atlas)
+- **`SSL handshake failed ... TLSV1_ALERT_INTERNAL_ERROR` from pymongo means the caller's IP is not
+  on Atlas Network Access.** It is not a credentials error (that is `OperationFailure: bad auth`,
+  which arrives after the handshake). For Render add its Outbound ranges (service → Connect →
+  Outbound); the dev machine's egress IP rotates across several addresses, so a `/32` is unreliable.
+- `server.py` runs `seed_admin()` at startup, so an unreachable DB kills the app (`Exited with status
+  3`), and `seed_admin` **creates a second admin** if `ADMIN_EMAIL` differs from an existing admin
+  document. Never pre-insert an admin into prod; a leftover one with the demo password stays valid.
+- After every deploy check `POST /api/auth/login` with the public demo admin password returns 401.
+- `FRONTEND_URL` must be `https://` in prod or auth cookies are not marked `Secure`. `vercel.json`
+  cannot read env vars, so the Render URL is hardcoded in its `/api` rewrite.
+- Vercel's install command must be `npm install --legacy-peer-deps` (see Frontend build).
+- The insurance chat panel has a fixed height (`h-[min(640px,75vh)]`) and its message list needs
+  `min-h-0 flex-1 overflow-y-auto`; with only a `min-h-*` parent the list never scrolls and the page
+  grows. Auto-scroll sets the list's `scrollTop`, not `scrollIntoView`, so the page does not jump.
+
 ## Running on Windows
 `uvicorn` is started without `--reload` in this setup, so restart it after backend edits. Find
 the process by port (`Get-NetTCPConnection -LocalPort 8001 -State Listen`) rather than by name.

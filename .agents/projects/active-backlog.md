@@ -15,20 +15,40 @@ git tag `pre-finance-swap`.
 
 ---
 
+## Deployment: Render + Vercel + Atlas (IN PROGRESS — 2026-09-21)
+Architecture: browser → Vercel (static frontend; `frontend/vercel.json` rewrites `/api/*`) → Render
+`fin-api` (`render.yaml`, FastAPI) → Atlas `Cluster0`, database `fin`. One origin for the browser, so
+cookies work and no CORS/cookie code changes were needed.
+
+| Piece | State |
+|---|---|
+| Atlas `Cluster0` (free M0, ap-south-1) | **Live** as the prod DB. App user `fin-app` (readWrite on `fin`). Network Access: Render range `74.220.60.0/24` plus the dev machine's original `/32` |
+| Render `fin-api` (`https://fin-api-dyki.onrender.com`) | **Live**, `/api/` healthy, reset token hidden. Free tier sleeps when idle (first request ~1 min) |
+| Real admin | `yashwanthchallagundla2805@gmail.com`, created by the backend from `ADMIN_EMAIL` on first start |
+| **Old admin `admin@surakshacfo.demo`** (`_id c8997c06-…`, public demo password) | **OPEN, SECURITY**: a seeded document I inserted via the Atlas connector earlier; the live login returned 200 with the public password when last checked. Delete that one document in Atlas (Browse Collections → `fin.users`), then confirm the login returns 401 |
+| Vercel project | **Not confirmed.** `frontend/vercel.json` is pushed (root dir `frontend`, `npm install --legacy-peer-deps`, `/api` rewrite to the Render URL). After deploy, set `FRONTEND_URL`, `APP_URL`, `CORS_ORIGINS` on Render to the `https://…vercel.app` URL |
+| Insurance chat UI | **Done**: fixed-height panel with its own scroll, auto-scrolls to the newest message (commit 364d420) |
+| Favicon | **Open**: the tab icon files in `frontend/public/` (`favicon.svg/.ico/-16/-32`, `apple-touch-icon.png`) are the Emergent logo copied from the finance export; replace with a SurakshaCFO icon |
+| Gemini | **Open**: `GEMINI_API_KEY` not confirmed on Render; the answers use the fallback until it is set. Model default `gemini-3-flash-preview` is unverified |
+
+---
+
 ## Proposed / Not Yet Scoped
 - **SIP management (CAS import, view-only)** — idea only. See decisions/log.md's
   2026-09-17/18 entries for the narrowing history before resuming. No design, schema or code exists.
 
 ## Known Tech Debt
-- **Atlas is provisioned but the app still runs on local mongod.** Project 0 / `Cluster0` (free M0,
-  ap-south-1) has a `fin` DB holding only the seeded admin (inserted via the Atlas MCP connector).
-  To switch, set `MONGO_URL` in `backend/.env`; the backend then creates the other collections and
-  indexes on first start. Blockers/loose ends: (1) this machine's egress IP rotates across several
-  addresses, so a single-IP Network Access entry fails the TLS handshake intermittently (use a stable
-  network, or a temporary `0.0.0.0/0` with an expiry); (2) the only DB user is `atlasAdmin`, so
-  create a `readWrite`-on-`fin` user for the app; (3) `~/Downloads/atlas-credentials.env` holds the
-  password in plaintext; (4) `.mcp.json` (read-only `mongodb-mcp-server`, needs
-  `MDB_MCP_CONNECTION_STRING`) is uncommitted and unused while the claude.ai Atlas connector works.
+- **Atlas loose ends.** Local dev still runs on the local `mongod` (`backend/.env`); prod uses Atlas
+  (see Deployment). (1) The dev machine's egress IP rotates across several addresses, so a single-IP
+  Network Access entry fails the TLS handshake (`TLSV1_ALERT_INTERNAL_ERROR`) intermittently; use a
+  stable network or a temporary `0.0.0.0/0` with an expiry. (2) The `atlasAdmin` user from Atlas
+  onboarding still exists; keep it off servers. Check that `fin-app` no longer holds
+  `readWriteAnyDatabase`. (3) `~/Downloads/atlas-credentials.env` (and a copy in the repo root, now
+  git-ignored via `*.env`) hold a plaintext password; move it to a password manager. (4) `.mcp.json`
+  (read-only `mongodb-mcp-server`) is committed but needs `MDB_MCP_CONNECTION_STRING` and is unused
+  while the claude.ai Atlas connector works. Its session expires; reconnect with `remote-atlas-connect`.
+- **Upload limits on the live site are untested**: Vercel's proxy may cap request bodies below the
+  10 MB document limit; if large PDFs fail only in prod, upload straight to the Render URL.
 - **`finance/` folder still on disk**: it holds the original Emergent export, including a plaintext
   `EMERGENT_LLM_KEY` and `JWT_SECRET` in its `.env` files. Delete it once the backup is no longer
   needed (then drop the `finance` line from `.gitignore`).
@@ -37,7 +57,8 @@ git tag `pre-finance-swap`.
   the swap.)
 - **RAG is not semantic**: `lib/rag.py` `retrieve` loads up to 5,000 chunks into Python and does
   cosine there, over 128-dim hashed bag-of-words vectors. Upgrade path: Atlas Vector Search plus a
-  real embedding model.
+  real embedding model (Gemini embeddings). Discussed with the user 2026-09-21, not started; existing
+  documents would need re-uploading because old and new vectors are incompatible.
 - **`login_attempts` never expire** (no TTL index) and are keyed per IP+email.
 - **Password reset has no delivery channel.** `/auth/forgot-password` returns the token only when
   `EXPOSE_RESET_TOKEN=true` (local dev/tests); it is off by default and not in `render.yaml`, so on a
