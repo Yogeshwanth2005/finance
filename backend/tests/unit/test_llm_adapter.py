@@ -1,4 +1,4 @@
-"""lib.llm is the only module that talks to OpenRouter; these tests never hit the real network.
+"""lib.llm is the only module that talks to Groq; these tests never hit the real network.
 
 The real httpx client runs against a MockTransport, so URL, headers, payload and SSE parsing are all exercised.
 """
@@ -14,9 +14,9 @@ _RealAsyncClient = httpx.AsyncClient
 
 
 @pytest.fixture(autouse=True)
-def _openrouter_env(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
+def _groq_env(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
 
 
 def _serve(monkeypatch, handler):
@@ -48,15 +48,16 @@ def _delta(text):
 
 
 def test_llm_configured_reflects_env(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     assert llm.llm_configured() is False
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
     assert llm.llm_configured() is True
 
 
-def test_a_gemini_key_alone_does_not_count_as_configured(monkeypatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+def test_another_providers_key_alone_does_not_count_as_configured(monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "some-other-providers-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "another-providers-key")
     assert llm.llm_configured() is False
 
 
@@ -67,7 +68,7 @@ async def test_generate_json_sends_an_authenticated_json_request_and_parses_the_
 
     assert result == {"name": "Plan A"}
     request = seen[0]
-    assert str(request.url) == "https://openrouter.ai/api/v1/chat/completions"
+    assert str(request.url) == "https://api.groq.com/openai/v1/chat/completions"
     assert request.headers["authorization"] == "Bearer test-key"
     body = json.loads(request.content)
     assert body["model"] == llm.DEFAULT_MODEL
@@ -77,7 +78,7 @@ async def test_generate_json_sends_an_authenticated_json_request_and_parses_the_
 
 async def test_model_can_be_overridden_from_env(monkeypatch):
     seen = _serve(monkeypatch, lambda request: _completion("{}"))
-    monkeypatch.setenv("OPENROUTER_MODEL", "test-model")
+    monkeypatch.setenv("GROQ_MODEL", "test-model")
 
     await llm.generate_json("SYSTEM", "CONTENT")
 
@@ -98,7 +99,7 @@ async def test_generate_json_raises_on_non_json_reply(monkeypatch):
 
 
 async def test_generate_json_raises_on_http_error(monkeypatch):
-    _serve(monkeypatch, lambda request: httpx.Response(401, json={"error": {"message": "No auth credentials found"}}))
+    _serve(monkeypatch, lambda request: httpx.Response(401, json={"error": {"message": "Invalid API Key"}}))
 
     with pytest.raises(httpx.HTTPStatusError):
         await llm.generate_json("SYSTEM", "CONTENT")
@@ -114,7 +115,7 @@ async def test_generate_json_raises_when_a_200_body_carries_an_error(monkeypatch
 async def test_stream_answer_yields_only_non_empty_text_and_skips_keepalives(monkeypatch):
     seen = _serve(
         monkeypatch,
-        lambda request: _sse(": OPENROUTER PROCESSING", _delta("Hello"), _delta(""), {"choices": [{"delta": {}}]}, _delta(" world"), "data: [DONE]"),
+        lambda request: _sse(": keep-alive", _delta("Hello"), _delta(""), {"choices": [{"delta": {}}]}, _delta(" world"), "data: [DONE]"),
     )
 
     deltas = [d async for d in llm.stream_answer("SYSTEM", "QUESTION")]
@@ -128,8 +129,23 @@ async def test_stream_answer_yields_only_non_empty_text_and_skips_keepalives(mon
     assert body["messages"] == [{"role": "system", "content": "SYSTEM"}, {"role": "user", "content": "QUESTION"}]
 
 
+async def test_stream_answer_never_yields_the_models_reasoning(monkeypatch):
+    """gpt-oss models stream their chain of thought in `delta.reasoning`, next to the answer in `delta.content`."""
+    _serve(
+        monkeypatch,
+        lambda request: _sse(
+            {"choices": [{"delta": {"role": "assistant", "reasoning": "The user wants a definition..."}}]},
+            {"choices": [{"delta": {"content": "Term insurance", "reasoning": None}}]},
+            {"choices": [{"delta": {"reasoning": "Keep it short."}}]},
+            _delta(" pays on death."),
+        ),
+    )
+
+    assert "".join([d async for d in llm.stream_answer("SYSTEM", "QUESTION")]) == "Term insurance pays on death."
+
+
 async def test_stream_answer_raises_on_http_error(monkeypatch):
-    _serve(monkeypatch, lambda request: httpx.Response(429, json={"error": {"message": "Rate limit exceeded"}}))
+    _serve(monkeypatch, lambda request: httpx.Response(429, json={"error": {"message": "Rate limit reached"}}))
 
     with pytest.raises(httpx.HTTPStatusError):
         [d async for d in llm.stream_answer("SYSTEM", "QUESTION")]

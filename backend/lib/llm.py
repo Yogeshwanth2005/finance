@@ -1,4 +1,4 @@
-"""Single seam to the LLM provider (OpenRouter's OpenAI-compatible API). Swap providers by editing this file only."""
+"""Single seam to the LLM provider (Groq's OpenAI-compatible API). Swap providers by editing this file only."""
 
 from __future__ import annotations
 
@@ -8,29 +8,29 @@ from typing import AsyncIterator
 
 import httpx
 
-BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "openrouter/free"  # OpenRouter's router over whichever free models are live; pin one with OPENROUTER_MODEL
+BASE_URL = "https://api.groq.com/openai/v1"
+DEFAULT_MODEL = "openai/gpt-oss-120b"  # free-tier model; pin another with GROQ_MODEL (`GET /models` lists what a key can use)
 TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 
 def llm_configured() -> bool:
-    return bool(os.environ.get("OPENROUTER_API_KEY"))
+    return bool(os.environ.get("GROQ_API_KEY"))
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(base_url=BASE_URL, headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"}, timeout=TIMEOUT)
+    return httpx.AsyncClient(base_url=BASE_URL, headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"}, timeout=TIMEOUT)
 
 
 def _payload(system_message: str, content: str, **extra) -> dict:
     return {
-        "model": os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL),
+        "model": os.environ.get("GROQ_MODEL", DEFAULT_MODEL),
         "messages": [{"role": "system", "content": system_message}, {"role": "user", "content": content}],
         **extra,
     }
 
 
 def _raise_if_error(body: dict) -> None:
-    """OpenRouter can report a provider failure inside a 200 body (or mid-stream) instead of an HTTP status."""
+    """Some OpenAI-compatible hosts report a provider failure inside a 200 body (or mid-stream) instead of an HTTP status."""
     error = body.get("error")
     if error:
         raise RuntimeError(str(error.get("message", error)) if isinstance(error, dict) else str(error))
@@ -45,7 +45,10 @@ def _strip_code_fence(text: str) -> str:
 
 
 async def generate_json(system_message: str, content: str) -> dict:
-    """One-shot structured call: the model replies with a JSON object, parsed here (ValueError if it is not JSON)."""
+    """One-shot structured call: the model replies with a JSON object, parsed here (ValueError if it is not JSON).
+
+    Groq's JSON mode rejects a request whose messages never mention "JSON", so the system message must ask for it.
+    """
     async with _client() as client:
         response = await client.post("/chat/completions", json=_payload(system_message, content, response_format={"type": "json_object"}))
     response.raise_for_status()
@@ -59,6 +62,7 @@ async def generate_json(system_message: str, content: str) -> dict:
 
 
 async def stream_answer(system_message: str, question: str) -> AsyncIterator[str]:
+    """Yields answer text only: gpt-oss models also stream `delta.reasoning`, which is never shown."""
     async with _client() as client:
         async with client.stream("POST", "/chat/completions", json=_payload(system_message, question, stream=True)) as response:
             if response.is_error:
@@ -66,7 +70,7 @@ async def stream_answer(system_message: str, question: str) -> AsyncIterator[str
             response.raise_for_status()
             async for line in response.aiter_lines():
                 if not line.startswith("data:"):
-                    continue  # blank separators and ": OPENROUTER PROCESSING" keep-alive comments
+                    continue  # blank separators and ": keep-alive" comments
                 data = line[len("data:"):].strip()
                 if data == "[DONE]":
                     break
