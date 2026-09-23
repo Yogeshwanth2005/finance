@@ -56,15 +56,19 @@ Any LLM exception falls back to `_general_profile_answer` with `fallback: true`.
   hardcoded demo plans any more (removed from `routers/profile.py`, `models/profile.py`, `sampleData.ts`).
 
 ## LLM seam (`backend/lib/llm.py`)
-OpenRouter's OpenAI-compatible API over plain `httpx` (no provider SDK). Tests run the real client against
-`httpx.MockTransport` by patching `llm.httpx.AsyncClient` (`tests/unit/test_llm_adapter.py`); nothing calls
-the network. Any exception inside the streaming block in `chat.py` falls through to the deterministic
-fallback with `"fallback": true`, so a bad key or model name degrades silently rather than erroring, and
-`chat.py` logs nothing, so check the key against the API directly, not through the chat. OpenRouter can
-also report a provider failure inside a 200 body or mid-stream; `_raise_if_error` turns that into an
-exception. Keys start `sk-or-v1-`: a Groq `gsk_…` key in `OPENROUTER_API_KEY` gets 401 "Missing
-Authentication header", and `llm_configured()` only checks non-empty, so it still reports True.
-Live OpenRouter calls have not been verified.
+Groq's OpenAI-compatible API over plain `httpx` (no provider SDK), default model `openai/gpt-oss-120b`.
+Tests run the real client against `httpx.MockTransport` by patching `llm.httpx.AsyncClient`
+(`tests/unit/test_llm_adapter.py`); nothing calls the network. Any exception inside the streaming block in
+`chat.py` falls through to the deterministic fallback with `"fallback": true`, so a bad key, model name or
+rate limit degrades silently rather than erroring, and `chat.py` logs nothing (the server log still shows
+each `api.groq.com` call and its status). `llm_configured()` only checks the key is non-empty, so a
+wrong-provider key still reports True (Google, OpenRouter and Groq each reject another's). Free tier,
+measured 2026-09-23: 1,000 requests a day and 8,000 tokens a minute per model, shared by chat and
+extraction, so `MAX_EXTRACT_CHARS` is 16,000 (60,000 chars was refused as 16,800 tokens); a burst can 429
+into the fallback. The gpt-oss models stream `delta.reasoning` beside `delta.content`; only content is
+yielded. Groq's JSON mode needs the word "JSON" in the messages (the extraction prompt has it).
+`GET https://api.groq.com/openai/v1/models` lists what a key can use. Verified live 2026-09-23 through the
+running app: streamed chat, plan extraction on upload, and a plan-named grounded answer, none with `fallback`.
 
 ## Auth (`backend/lib/auth.py`, `backend/routers/auth.py`)
 - `_public()` must not use `user.get("id", user["_id"])`: the default is evaluated eagerly and

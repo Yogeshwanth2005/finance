@@ -25,7 +25,7 @@ async def _save_document(title: str, source_type: str, text: str, source_url: st
     document_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc)
     display_title = title.strip() or "Untitled insurance document"
-    # A draft card for the admin to review; None without an OpenRouter key or when nothing usable is found.
+    # A draft card for the admin to review; None without a Groq key or when nothing usable is found.
     plan = await extract_plan(display_title, text)
     plan_fields = {"plan": plan.model_dump() if plan else None, "plan_status": "draft" if plan else "none"}
     await db.rag_documents.insert_one(

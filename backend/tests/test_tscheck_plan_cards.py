@@ -1,7 +1,7 @@
 """Criterion: plan cards are drafted from documents, reviewed by an admin, and only published cards
 from active documents reach customers.
 
-Works with or without OPENROUTER_API_KEY on the server: the test sets the card itself, so it does not
+Works with or without GROQ_API_KEY on the server: the test sets the card itself, so it does not
 depend on AI extraction (which only pre-fills a draft).
 """
 

@@ -18,7 +18,7 @@ from models.rag import NOT_STATED, PlanCard, PlanDetails
 
 logger = logging.getLogger(__name__)
 
-MAX_EXTRACT_CHARS = 60_000
+MAX_EXTRACT_CHARS = 16_000  # Groq's free tier refuses over 8,000 tokens a minute; 60,000 chars measured 16,800 tokens
 EXTRACT_TIMEOUT_SECONDS = 45.0
 MAX_HIGHLIGHTS = 4
 _PLACEHOLDERS = {"", "-", "n/a", "na", "none", "null", "unknown", "not available", "not stated", "not stated in the document"}

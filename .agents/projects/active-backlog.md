@@ -29,9 +29,9 @@ cookies work and no CORS/cookie code changes were needed.
 | Vercel project | **Not confirmed.** `frontend/vercel.json` is pushed (root dir `frontend`, `npm install --legacy-peer-deps`, `/api` rewrite to the Render URL). After deploy, set `FRONTEND_URL`, `APP_URL`, `CORS_ORIGINS` on Render to the `https://…vercel.app` URL |
 | Insurance chat UI | **Done**: fixed-height panel with its own scroll, auto-scrolls to the newest message (commit 364d420) |
 | Favicon | **Open**: the tab icon files in `frontend/public/` (`favicon.svg/.ico/-16/-32`, `apple-touch-icon.png`) are the Emergent logo copied from the finance export; replace with a SurakshaCFO icon |
-| LLM (OpenRouter) | **Open**: `lib/llm.py` now calls OpenRouter (default `openrouter/free`, pin one with `OPENROUTER_MODEL`), replacing Gemini 2026-09-23. It needs a real `sk-or-v1-…` `OPENROUTER_API_KEY` in `backend/.env` and on Render; until then answers use the fallback (open-mode chat, which answers general and "which plan" questions, only activates with a key). The key that was in `.env` is a Groq `gsk_…` key: that is why Google returned `API_KEY_INVALID` and OpenRouter returns 401. It now sits under `GROQ_API_KEY` (unread) and `OPENROUTER_API_KEY=""` is empty. Adapter verified only against a mock transport; no live call has succeeded. Open mode is verified only with a stubbed LLM |
-| Plan cards from documents | **Built, unverified live**: draft-extract on upload, admin review/publish dialog, `GET /plans`, click-through detail dialog. Checked with unit tests, a fake-DB route script and a browser run against a mock API. Still to do: run `tests/test_tscheck_plan_cards.py` against a live server, and try a real brochure with a live `OPENROUTER_API_KEY` to judge extraction quality. Needs the key on Render to extract; without it admins enter cards by hand |
-| Open-mode chat | **Built, unverified live**: needs a real key plus a run of the live-server suite. `test_tscheck_general_question_profile_based` and `test_tscheck_plan_specific_retrieval_gating` assert the old gated behaviour and will fail against a keyed server; rewrite them once open mode is confirmed |
+| LLM (Groq) | **Working locally; Render not set**: `lib/llm.py` calls Groq's free tier (default `openai/gpt-oss-120b`, pin one with `GROQ_MODEL`), replacing Gemini 2026-09-23 (briefly OpenRouter, by a mix-up: the key was always a Groq `gsk_…` key, which is why Google returned `API_KEY_INVALID`). Verified live through the running app 2026-09-23: streamed open-mode chat, plan extraction on upload, and a cited plan-named answer, none with `fallback`. Still to do: set `GROQ_API_KEY` on Render (until then answers use the fallback and open-mode chat stays off), and run the live-server suite with the key set. Limits: 1,000 requests/day and 8,000 tokens/min per model, so a burst falls back silently |
+| Plan cards from documents | **Built, unverified live**: draft-extract on upload, admin review/publish dialog, `GET /plans`, click-through detail dialog. Checked with unit tests, a fake-DB route script and a browser run against a mock API. Still to do: run `tests/test_tscheck_plan_cards.py` against a live server, and try a real brochure with a live `GROQ_API_KEY` to judge extraction quality (a small synthetic plan extracted correctly 2026-09-23; only the first 16,000 characters of a long document are sent). Needs the key on Render to extract; without it admins enter cards by hand |
+| Open-mode chat | **Built; one live run passed 2026-09-23** (a general question streamed with no `fallback`). Still to do: the live-server suite with the key set. `test_tscheck_general_question_profile_based` and `test_tscheck_plan_specific_retrieval_gating` assert the old gated behaviour and will fail against a keyed server; rewrite them once open mode is confirmed |
 
 ---
 
@@ -80,10 +80,10 @@ Restored from git history (`dddc580^`); reasoning and rejected alternatives in d
 - **Google sign-in** is pending (no OAuth credentials).
 - **`_plans()` is gone** (removed in commit 9fafa39): plan cards now come only from published
   documents. The old `DEMO_MODE` gate was never ported (see decisions/log.md, 2026-09-21).
-- **LLM streaming is unverified**: with no valid key only the deterministic fallback path runs. Set a
-  real `OPENROUTER_API_KEY`, upload a small TXT and ask about it to check real SSE deltas, and that a
-  live `done` event carries no `fallback`. `chat.py` swallows LLM exceptions without logging, so a bad
-  key looks identical to "no key"; consider a `logger.warning` there.
+- **`chat.py` swallows LLM errors without logging**: a bad key, a retired model or a Groq rate limit
+  (429) all fall back to the deterministic answer with `fallback: true` and leave no log line, so they
+  look like "no key". Consider a `logger.warning` in both `except Exception` blocks. (Streaming itself was
+  verified live 2026-09-23.)
 - **Pure tests in `tests/` root need a live server**: `tests/conftest.py`'s autouse session fixture logs
   in to `BACKEND_URL`, so `test_chat_context`, `test_plan_extract` and `test_reset_token_gate` (pure logic)
   error with `ConnectError` unless a backend is up. Only `tests/unit/` overrides it; the LLM adapter tests
