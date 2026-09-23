@@ -38,6 +38,8 @@ const initialDraft: ProfileInput = {
   existing_term_cover_crore: 0,
   emergency_savings: 0,
   current_investments: 0,
+  risk_tolerance: "moderate",
+  investment_horizon_years: 10,
 };
 
 const steps = [
@@ -239,6 +241,12 @@ export default function Home() {
                   <Field label={t("termCover")} testId="profile-term-cover"><Input type="number" min="0" step="0.1" value={draft.existing_term_cover_crore} onChange={(event) => update("existing_term_cover_crore", Number(event.target.value))} data-testid="profile-term-cover-input" /></Field>
                   <Field label={t("emergencySavings")} hint="Savings you can access without selling investments" testId="profile-emergency-savings"><Input type="number" min="0" value={draft.emergency_savings} onChange={(event) => update("emergency_savings", Number(event.target.value))} data-testid="profile-emergency-savings-input" /></Field>
                   <Field label={t("investments")} testId="profile-investments"><Input type="number" min="0" value={draft.current_investments} onChange={(event) => update("current_investments", Number(event.target.value))} data-testid="profile-investments-input" /></Field>
+                  <Field label={t("riskTolerance")} hint="How much short-term swing you can stay calm through" testId="profile-risk-tolerance">
+                    <select value={draft.risk_tolerance} onChange={(event) => update("risk_tolerance", event.target.value as ProfileInput["risk_tolerance"])} className="h-8 w-full rounded-lg border border-[#e4e1d8] bg-white px-2.5 text-sm outline-none focus:border-[#0d7a5f]" data-testid="profile-risk-tolerance-select">
+                      <option value="conservative">{t("riskConservative")}</option><option value="moderate">{t("riskModerate")}</option><option value="aggressive">{t("riskAggressive")}</option>
+                    </select>
+                  </Field>
+                  <Field label={t("investmentHorizon")} hint="Years until you expect to need this money" testId="profile-investment-horizon"><Input type="number" min="1" max="60" value={draft.investment_horizon_years} onChange={(event) => update("investment_horizon_years", Number(event.target.value))} data-testid="profile-investment-horizon-input" /></Field>
                 </div>
               )}
 

@@ -4,8 +4,8 @@
 SurakshaCFO is an India/INR family financial protection planner. A household enters a basic family profile, income, liabilities, existing protection, liquid savings and investments. The app returns a dashboard with rule-based term-insurance, health-cover, emergency-fund and investable-surplus analysis, then offers illustrative plan comparisons and a profile-aware insurance chat surface.
 
 ## Data model
-- `ProfileInput` / `FamilyProfile`: family demographics, employment and household income, expenses, loans, existing cover, emergency savings and investments.
-- `FinancialAnalysis`: annual cashflow, liabilities, protection score, term and health gaps, six-month emergency-fund goal, insurance budget and investable surplus.
+- `ProfileInput` / `FamilyProfile`: family demographics, employment and household income, expenses, loans, existing cover, emergency savings, investments, risk tolerance (conservative/moderate/aggressive) and investment horizon in years.
+- `FinancialAnalysis`: annual cashflow, liabilities, protection score, term and health gaps, six-month emergency-fund goal, insurance budget, investable surplus and the glide-path allocation (equity/debt/gold %).
 - `ProfileKpis`: eight neutral profile metrics—emergency coverage %, runway months, term adequacy %, health adequacy %, savings rate %, debt-to-income %, cover-to-liabilities ratio and liabilities-to-income multiple.
 - `Plan`: illustrative term/health plan comparison data.
 - `DocumentRecord` and vector chunks: admin-controlled insurance knowledge sources with active/paused status.
@@ -23,6 +23,7 @@ SurakshaCFO is an India/INR family financial protection planner. A household ent
 - Health baseline = 10L plus household/city adjustment, capped at 25L.
 - Emergency fund = 6× monthly household expenses.
 - Investable surplus = annual income − expenses − EMIs − illustrative insurance budget, floored at zero.
+- Allocation (glide path, `lib/allocation.py`) = equity (100 − age) × risk multiplier (conservative 0.8, moderate 1.0, aggressive 1.2), less 20 points when the investment horizon is 3 years or under, clamped to 0–100; gold is a flat 10% capped by what equity leaves; debt is the remainder. The three always sum to 100. Profiles saved before risk tolerance and horizon existed default to moderate and 10 years.
 
 ## Profile KPI rules
 - Emergency coverage % = emergency savings ÷ (6 × monthly expenses) × 100; runway = emergency savings ÷ monthly expenses.

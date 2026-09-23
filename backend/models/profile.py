@@ -27,6 +27,9 @@ class ProfileInput(BaseModel):
     existing_term_cover_crore: float = Field(ge=0)
     emergency_savings: float = Field(ge=0)
     current_investments: float = Field(ge=0)
+    # Defaults keep profiles saved before these fields existed valid: _response() re-validates stored documents on every read.
+    risk_tolerance: str = Field(default="moderate", pattern="^(conservative|moderate|aggressive)$")
+    investment_horizon_years: int = Field(default=10, ge=1, le=60)
 
     @model_validator(mode="after")
     def clear_spouse_when_single(self) -> "ProfileInput":
@@ -54,6 +57,12 @@ class ProfileKpis(BaseModel):
     liabilities_to_income_multiple: float
 
 
+class AllocationSnapshot(BaseModel):
+    equity_pct: float
+    debt_pct: float
+    gold_pct: float
+
+
 class FinancialAnalysis(BaseModel):
     annual_household_income: float
     annual_expenses: float
@@ -70,6 +79,7 @@ class FinancialAnalysis(BaseModel):
     emergency_gap: float
     emergency_months: float
     kpis: ProfileKpis
+    allocation: AllocationSnapshot
     protection_score: int
     score_label: str
     formula_notes: list[str]

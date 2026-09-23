@@ -1,3 +1,5 @@
+export type RiskTolerance = "conservative" | "moderate" | "aggressive";
+
 export interface ProfileInput {
   full_name: string;
   dob: string;
@@ -22,6 +24,8 @@ export interface ProfileInput {
   existing_term_cover_crore: number;
   emergency_savings: number;
   current_investments: number;
+  risk_tolerance: RiskTolerance;
+  investment_horizon_years: number;
 }
 
 export interface FamilyProfile extends ProfileInput {
@@ -74,10 +78,18 @@ export interface FinancialAnalysis {
   emergency_gap: number;
   emergency_months: number;
   kpis: ProfileKpis;
+  allocation: AllocationSnapshot;
   protection_score: number;
   score_label: string;
   formula_notes: string[];
   disclaimer: string;
+}
+
+// Glide-path split of the investable surplus, computed server-side from age, risk tolerance and horizon; sums to 100.
+export interface AllocationSnapshot {
+  equity_pct: number;
+  debt_pct: number;
+  gold_pct: number;
 }
 
 export interface ProfileKpis {

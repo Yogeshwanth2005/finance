@@ -44,10 +44,10 @@ export default function Dashboard() {
   const emergencyGapOpen = analysis.emergency_gap > 0;
   const insuranceExceedsSurplus = analysis.annual_insurance_budget > analysis.annual_surplus_before_protection;
   const monthlyInvestable = analysis.investable_surplus / 12;
-  const fundAllocations = [
-    { name: "Nifty 50 index", pct: 0.5, color: "bg-[#0d7a5f]" },
-    { name: "Flexi-cap", pct: 0.3, color: "bg-[#d97706]" },
-    { name: "Mid-cap growth", pct: 0.2, color: "bg-[#2563eb]" },
+  const allocationBuckets = [
+    { name: "Equity", pct: analysis.allocation.equity_pct, color: "bg-[#0d7a5f]" },
+    { name: "Debt", pct: analysis.allocation.debt_pct, color: "bg-[#2563eb]" },
+    { name: "Gold", pct: analysis.allocation.gold_pct, color: "bg-[#d97706]" },
   ];
   const categories = [
     { label: "Living costs", value: analysis.annual_expenses, color: "bg-[#c8c4b7]" },
@@ -110,12 +110,13 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div data-testid="investment-sip-plan">
-                    <p className="text-sm leading-6 text-[#5c5f66]">After your protection budget, here's a simple diversified monthly SIP:</p>
+                    <p className="text-sm leading-6 text-[#5c5f66]">After your protection budget, here's how a glide-path split of your monthly surplus could look:</p>
                     <p className="mt-4 font-mono text-2xl font-bold text-[#17181c]" data-testid="investment-monthly-amount">{formatINR(monthlyInvestable, true)}<span className="ml-1 text-xs font-sans font-normal text-[#8a8f99]">/ month</span></p>
-                    <div className="mt-5 space-y-3 text-xs">{fundAllocations.map((fund) => <div key={fund.name} className="flex items-center gap-3" data-testid={`investment-fund-${fund.name.toLowerCase().replaceAll(" ", "-")}`}><span className={`size-2 rounded-full ${fund.color}`} /><span className="flex-1 font-semibold text-[#17181c]">{fund.name}</span><span className="font-mono font-bold text-[#5c5f66]">{formatINR(monthlyInvestable * fund.pct, true)}</span></div>)}</div>
+                    <div className="mt-5 space-y-3 text-xs">{allocationBuckets.map((bucket) => <div key={bucket.name} className="flex items-center gap-3" data-testid={`investment-allocation-${bucket.name.toLowerCase()}`}><span className={`size-2 rounded-full ${bucket.color}`} /><span className="flex-1 font-semibold text-[#17181c]">{bucket.name}</span><span className="font-mono text-[#8a8f99]" data-testid={`investment-allocation-${bucket.name.toLowerCase()}-pct`}>{bucket.pct}%</span><span className="w-20 text-right font-mono font-bold text-[#5c5f66]">{formatINR(monthlyInvestable * bucket.pct / 100, true)}</span></div>)}</div>
+                    <p className="mt-4 text-[11px] leading-5 text-[#8a8f99]" data-testid="investment-allocation-basis">Age {profile.age} · {profile.risk_tolerance} risk · {profile.investment_horizon_years}-year horizon</p>
                   </div>
                 )}
-                <p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="investment-disclaimer">Illustrative only — match the allocation to time horizon and risk capacity.</p>
+                <p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="investment-disclaimer">Illustrative only — a rule-of-thumb glide path (equity ≈ 100 − age, scaled by risk tolerance, trimmed for horizons of 3 years or less), not personalised advice.</p>
               </CardContent>
             </Card>
             <Card className="border-[#e4e1d8] bg-white shadow-none" data-testid="dashboard-insurance-status-card">

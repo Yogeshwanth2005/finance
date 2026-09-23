@@ -35,6 +35,18 @@ cookies work and no CORS/cookie code changes were needed.
 
 ---
 
+## Restore glide-path allocation and analysis tests (COMPLETED — 2026-09-23)
+Restored from git history (`dddc580^`); reasoning and rejected alternatives in decisions/log.md, 2026-09-23.
+
+| Task | Area | Status |
+|---|---|---|
+| 1 | `lib/{allocation,gap_analysis,insurance_matching,finance_config}.py` plus the 32 original tests in `tests/unit/` | **Done**: logic differs from the originals only on the import line |
+| 2 | `risk_tolerance` / `investment_horizon_years` on `ProfileInput`, wizard step 4, i18n in four languages | **Done**: stored profiles default to moderate / 10 years |
+| 3 | Dashboard allocation card reads `analysis.allocation` (from `compute_allocation`) | **Done**: browser-verified. It shows only after the emergency-fund and insurance-budget checks pass, as before |
+| 4 | Direct `_analysis()` edge-case tests (`tests/unit/test_analysis_edge_cases.py`) | **Done**: 23 tests, 12/12 mutation checks caught. Full suite: 174 passing |
+
+---
+
 ## Proposed / Not Yet Scoped
 - **SIP management (CAS import, view-only)** — idea only. See decisions/log.md's
   2026-09-17/18 entries for the narrowing history before resuming. No design, schema or code exists.
@@ -66,8 +78,8 @@ cookies work and no CORS/cookie code changes were needed.
   `EXPOSE_RESET_TOKEN=true` (local dev/tests); it is off by default and not in `render.yaml`, so on a
   public deployment users cannot reset a forgotten password until an email provider exists.
 - **Google sign-in** is pending (no OAuth credentials).
-- **`_plans()` in `routers/profile.py`** hard-codes named insurers and claim-settlement ratios.
-  The old `DEMO_MODE` gate was not ported (see decisions/log.md, 2026-09-21).
+- **`_plans()` is gone** (removed in commit 9fafa39): plan cards now come only from published
+  documents. The old `DEMO_MODE` gate was never ported (see decisions/log.md, 2026-09-21).
 - **Gemini streaming is unverified**: with no key only the deterministic fallback path runs. Set
   `GEMINI_API_KEY`, upload a small TXT and ask about it to check real SSE deltas.
 - **Frontend install**: needs `npm install --legacy-peer-deps` (npm 10.9.8 arborist crash on
@@ -76,3 +88,17 @@ cookies work and no CORS/cookie code changes were needed.
   tests share one retest user, so parallel modules can race on `preferred_language`.
 - **Playwright workspace** (`tests/`) has no specs yet.
 - **`implementationplanv2.md`** is stale product history; remove it or archive it.
+- **Restored engines are unwired** (2026-09-23). `lib/gap_analysis.py`, `lib/insurance_matching.py`
+  and `select_fund_examples` (in `lib/allocation.py`) are tested but no live flow calls them. Live
+  `_analysis()` uses different rules (15× combined income + liabilities, tiered ₹10–25L health, one
+  `monthly_emi`), so wiring them means choosing one definition first. `HIGH_INTEREST_DEBT_THRESHOLD`
+  in `lib/finance_config.py` was never referenced, in the original either.
+- **`frontend/src/lib/sampleData.ts` is hand-written and stale.** For the sample profile it shows a
+  term need of 4.3 Cr, score 43 and insurance budget ₹1,81,250; `_analysis()` returns 5.64 Cr, 25 and
+  ₹1,23,950. Regenerate it from the engine.
+- **Unsourced premium constants in `_analysis()`**: ₹17,500 per crore of term gap and ₹22,000 +
+  ₹4,000 per dependent for health feed `investable_surplus`. The `max(10, …)` floor on the health need
+  never applies (its smallest result is 12).
+- **hi/te/ta labels** for risk tolerance and investment horizon (`i18n.ts`) have had no native review.
+- **Allocation defaults are silent**: stored profiles without the two new fields read as moderate /
+  10 years until the user re-saves the profile.

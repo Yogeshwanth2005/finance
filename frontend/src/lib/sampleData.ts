@@ -26,6 +26,8 @@ export const SAMPLE_PROFILE_RESPONSE: ProfileResponse = {
     existing_term_cover_crore: 0.5,
     emergency_savings: 300000,
     current_investments: 1200000,
+    risk_tolerance: "moderate",
+    investment_horizon_years: 10,
   },
   analysis: {
     annual_household_income: 3600000,
@@ -52,6 +54,7 @@ export const SAMPLE_PROFILE_RESPONSE: ProfileResponse = {
       cover_to_liabilities_ratio: 0.72,
       liabilities_to_income_multiple: 1.93,
     },
+    allocation: { equity_pct: 65, debt_pct: 25, gold_pct: 10 },
     protection_score: 43,
     score_label: "Needs attention",
     formula_notes: [
