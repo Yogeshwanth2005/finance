@@ -39,7 +39,7 @@ Comparison answers list sources in chunk-rank order, not question order.
 **Open mode (key set only).** The two points above describe the *no-key / named-plan* behaviour. When
 `llm_configured()` and the question names no plan and is not a comparison, `stream_chat` skips title
 gating: `retrieve_across_documents` returns the top 2 chunks of up to 6 documents, the last 6
-`chat_messages` go into the prompt (so "which should I take" resolves), and Gemini answers from profile,
+`chat_messages` go into the prompt (so "which should I take" resolves), and the LLM answers from profile,
 history and excerpts. `sources` = plan titles the answer names (`cited_titles`), else the profile label.
 Any LLM exception falls back to `_general_profile_answer` with `fallback: true`. The pure helpers live in
 `lib/chat_context.py` (unit tests: `tests/test_chat_context.py`, no server needed).
@@ -56,10 +56,15 @@ Any LLM exception falls back to `_general_profile_answer` with `fallback: true`.
   hardcoded demo plans any more (removed from `routers/profile.py`, `models/profile.py`, `sampleData.ts`).
 
 ## LLM seam (`backend/lib/llm.py`)
-`_client()` is the patch point for tests (they stub it; nothing calls the network). Any
-exception inside the streaming block in `chat.py` falls through to the deterministic fallback
-with `"fallback": true`, so a bad key or model name degrades silently rather than erroring.
-Real streaming has not been verified without a live `GEMINI_API_KEY`.
+OpenRouter's OpenAI-compatible API over plain `httpx` (no provider SDK). Tests run the real client against
+`httpx.MockTransport` by patching `llm.httpx.AsyncClient` (`tests/unit/test_llm_adapter.py`); nothing calls
+the network. Any exception inside the streaming block in `chat.py` falls through to the deterministic
+fallback with `"fallback": true`, so a bad key or model name degrades silently rather than erroring, and
+`chat.py` logs nothing, so check the key against the API directly, not through the chat. OpenRouter can
+also report a provider failure inside a 200 body or mid-stream; `_raise_if_error` turns that into an
+exception. Keys start `sk-or-v1-`: a Groq `gsk_…` key in `OPENROUTER_API_KEY` gets 401 "Missing
+Authentication header", and `llm_configured()` only checks non-empty, so it still reports True.
+Live OpenRouter calls have not been verified.
 
 ## Auth (`backend/lib/auth.py`, `backend/routers/auth.py`)
 - `_public()` must not use `user.get("id", user["_id"])`: the default is evaluated eagerly and

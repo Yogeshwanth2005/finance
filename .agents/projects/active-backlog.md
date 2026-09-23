@@ -29,8 +29,8 @@ cookies work and no CORS/cookie code changes were needed.
 | Vercel project | **Not confirmed.** `frontend/vercel.json` is pushed (root dir `frontend`, `npm install --legacy-peer-deps`, `/api` rewrite to the Render URL). After deploy, set `FRONTEND_URL`, `APP_URL`, `CORS_ORIGINS` on Render to the `https://…vercel.app` URL |
 | Insurance chat UI | **Done**: fixed-height panel with its own scroll, auto-scrolls to the newest message (commit 364d420) |
 | Favicon | **Open**: the tab icon files in `frontend/public/` (`favicon.svg/.ico/-16/-32`, `apple-touch-icon.png`) are the Emergent logo copied from the finance export; replace with a SurakshaCFO icon |
-| Gemini | **Open**: `GEMINI_API_KEY` not confirmed on Render; the answers use the fallback until it is set (open-mode chat, which answers general and "which plan" questions, only activates with a key). Model default `gemini-3-flash-preview` is unverified; a free-tier key from Google AI Studio works, consider `GEMINI_MODEL=gemini-2.5-flash-lite` for the larger daily quota. Open mode is verified only with a stubbed LLM, not a live key |
-| Plan cards from documents | **Built, unverified live**: draft-extract on upload, admin review/publish dialog, `GET /plans`, click-through detail dialog. Checked with unit tests, a fake-DB route script and a browser run against a mock API. Still to do: run `tests/test_tscheck_plan_cards.py` against a live server, and try a real brochure with a live `GEMINI_API_KEY` to judge extraction quality. Needs the key on Render to extract; without it admins enter cards by hand |
+| LLM (OpenRouter) | **Open**: `lib/llm.py` now calls OpenRouter (default `openrouter/free`, pin one with `OPENROUTER_MODEL`), replacing Gemini 2026-09-23. It needs a real `sk-or-v1-…` `OPENROUTER_API_KEY` in `backend/.env` and on Render; until then answers use the fallback (open-mode chat, which answers general and "which plan" questions, only activates with a key). The key that was in `.env` is a Groq `gsk_…` key: that is why Google returned `API_KEY_INVALID` and OpenRouter returns 401. It now sits under `GROQ_API_KEY` (unread) and `OPENROUTER_API_KEY=""` is empty. Adapter verified only against a mock transport; no live call has succeeded. Open mode is verified only with a stubbed LLM |
+| Plan cards from documents | **Built, unverified live**: draft-extract on upload, admin review/publish dialog, `GET /plans`, click-through detail dialog. Checked with unit tests, a fake-DB route script and a browser run against a mock API. Still to do: run `tests/test_tscheck_plan_cards.py` against a live server, and try a real brochure with a live `OPENROUTER_API_KEY` to judge extraction quality. Needs the key on Render to extract; without it admins enter cards by hand |
 | Open-mode chat | **Built, unverified live**: needs a real key plus a run of the live-server suite. `test_tscheck_general_question_profile_based` and `test_tscheck_plan_specific_retrieval_gating` assert the old gated behaviour and will fail against a keyed server; rewrite them once open mode is confirmed |
 
 ---
@@ -71,7 +71,7 @@ Restored from git history (`dddc580^`); reasoning and rejected alternatives in d
   the swap.)
 - **RAG is not semantic**: `lib/rag.py` `retrieve` loads up to 5,000 chunks into Python and does
   cosine there, over 128-dim hashed bag-of-words vectors. Upgrade path: Atlas Vector Search plus a
-  real embedding model (Gemini embeddings). Discussed with the user 2026-09-21, not started; existing
+  real embedding model (a hosted one). Discussed with the user 2026-09-21, not started; existing
   documents would need re-uploading because old and new vectors are incompatible.
 - **`login_attempts` never expire** (no TTL index) and are keyed per IP+email.
 - **Password reset has no delivery channel.** `/auth/forgot-password` returns the token only when
@@ -80,8 +80,17 @@ Restored from git history (`dddc580^`); reasoning and rejected alternatives in d
 - **Google sign-in** is pending (no OAuth credentials).
 - **`_plans()` is gone** (removed in commit 9fafa39): plan cards now come only from published
   documents. The old `DEMO_MODE` gate was never ported (see decisions/log.md, 2026-09-21).
-- **Gemini streaming is unverified**: with no key only the deterministic fallback path runs. Set
-  `GEMINI_API_KEY`, upload a small TXT and ask about it to check real SSE deltas.
+- **LLM streaming is unverified**: with no valid key only the deterministic fallback path runs. Set a
+  real `OPENROUTER_API_KEY`, upload a small TXT and ask about it to check real SSE deltas, and that a
+  live `done` event carries no `fallback`. `chat.py` swallows LLM exceptions without logging, so a bad
+  key looks identical to "no key"; consider a `logger.warning` there.
+- **Pure tests in `tests/` root need a live server**: `tests/conftest.py`'s autouse session fixture logs
+  in to `BACKEND_URL`, so `test_chat_context`, `test_plan_extract` and `test_reset_token_gate` (pure logic)
+  error with `ConnectError` unless a backend is up. Only `tests/unit/` overrides it; the LLM adapter tests
+  were moved there 2026-09-23. Moving the rest would let them run without Mongo or a server.
+- **Admin URL upload is an SSRF hole**: `POST /admin/documents` with `source_url` fetches any http(s)
+  address from the server, including `127.0.0.1` and other internal hosts. Admin-only, but block loopback,
+  private and link-local ranges before a public deploy.
 - **Frontend install**: needs `npm install --legacy-peer-deps` (npm 10.9.8 arborist crash on
   vitest's optional peers). `npm audit` reports 4 vulnerabilities (2 moderate, 2 high), untriaged.
 - **Test hygiene**: tests never clean up (`tscheck-*` docs and users accumulate), and the language

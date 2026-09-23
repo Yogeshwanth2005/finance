@@ -16,7 +16,7 @@ small typed fetch layer over `/api`.
 backend/   FastAPI + Motor (async MongoDB) + Pydantic v2
   server.py    app, CORS, single APIRouter(prefix="/api")
   routers/     auth, profile, chat, plans, admin
-  lib/         db, auth (JWT cookies + bcrypt), rag (local hashed vectors), llm (Gemini seam),
+  lib/         db, auth (JWT cookies + bcrypt), rag (local hashed vectors), llm (OpenRouter seam),
                chat_context (open-mode prompt helpers), plan_extract (document -> plan card), dates
   models/      Pydantic request/response models
   tests/       pytest, run against a live server
@@ -76,10 +76,10 @@ land outside `/api` and the proxy would not reach it.
   `AsyncIOMotorClient`. Indexes are declared in `lib/db.py` (`INDEXES`) and applied at startup.
 - **Ids**: documents use string `uuid4` ids (`_id` / `id`), never `ObjectId`, which is not
   JSON-serialisable.
-- **LLM**: `lib/llm.py` is the only module that talks to Gemini. With no `GEMINI_API_KEY` the
-  chat degrades to a deterministic, localised fallback answer, so the app runs without a key.
-- **Chat has two modes.** With `GEMINI_API_KEY` set and no plan named in the question, chat runs
-  in *open mode*: Gemini gets the profile, recent history and the best chunks across all
+- **LLM**: `lib/llm.py` is the only module that talks to OpenRouter. With no `OPENROUTER_API_KEY`
+  the chat degrades to a deterministic, localised fallback answer, so the app runs without a key.
+- **Chat has two modes.** With `OPENROUTER_API_KEY` set and no plan named in the question, chat runs
+  in *open mode*: the model gets the profile, recent history and the best chunks across all
   enabled documents, and decides what is relevant. Otherwise retrieval is title-gated:
   documents are only retrieved when the question names an indexed plan/provider or asks for a
   comparison, and general questions are answered from the profile alone. Answers stay within
@@ -118,8 +118,8 @@ tests use is in [docs/test_credentials.md](docs/test_credentials.md) and needs t
 | `CORS_ORIGINS`, `APP_URL`, `FRONTEND_URL` | Allowed origins and app URLs. Keep `FRONTEND_URL` on `http://` locally, or auth cookies are marked `Secure` and plain-HTTP clients will not send them |
 | `JWT_SECRET` | Signs session tokens |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Seeded admin account; skipped if either is unset |
-| `GEMINI_API_KEY` | Optional; empty means deterministic fallback answers |
-| `GEMINI_MODEL` | Optional; defaults to `gemini-3-flash-preview` |
+| `OPENROUTER_API_KEY` | Optional; empty means deterministic fallback answers |
+| `OPENROUTER_MODEL` | Optional; defaults to `openrouter/free`, OpenRouter's router over its free models. Set any model id to pin one |
 | `EXPOSE_RESET_TOKEN` | Set to `true` only for local demos/tests. It makes `/auth/forgot-password` return the reset token; never set it in production |
 
 ## Deploying the backend (Render)

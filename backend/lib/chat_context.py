@@ -1,4 +1,4 @@
-"""Pure helpers for open chat mode (Gemini answers any question from profile, history and documents)."""
+"""Pure helpers for open chat mode (the LLM answers any question from profile, history and documents)."""
 
 from __future__ import annotations
 
