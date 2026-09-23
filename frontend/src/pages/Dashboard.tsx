@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet } from "@/lib/api";
 import { formatINR, SAMPLE_PROFILE_RESPONSE } from "@/lib/sampleData";
-import type { ProfileResponse } from "@/lib/types";
+import type { Plan, ProfileResponse } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { t } = useI18n();
   const query = useQuery({ queryKey: ["profile"], queryFn: () => apiGet<ProfileResponse>("/profile"), retry: false });
+  const plansQuery = useQuery({ queryKey: ["plans"], queryFn: () => apiGet<Plan[]>("/plans"), retry: false });
   if (user && user.role !== "admin" && !user.profile_complete) return <Navigate to="/" replace />;
   const response = query.data ?? SAMPLE_PROFILE_RESPONSE;
   const { profile, analysis } = response;
@@ -39,6 +40,15 @@ export default function Dashboard() {
   const scoreDegrees = Math.max(0, Math.min(100, analysis.protection_score)) * 3.6;
   const annualCashflow = analysis.annual_surplus_before_protection;
   const uncoveredLiabilities = Math.max(0, analysis.total_liabilities - (profile.existing_term_cover_crore * 10_000_000));
+  const publishedPlanCount = plansQuery.data?.length ?? 0;
+  const emergencyGapOpen = analysis.emergency_gap > 0;
+  const insuranceExceedsSurplus = analysis.annual_insurance_budget > analysis.annual_surplus_before_protection;
+  const monthlyInvestable = analysis.investable_surplus / 12;
+  const fundAllocations = [
+    { name: "Nifty 50 index", pct: 0.5, color: "bg-[#0d7a5f]" },
+    { name: "Flexi-cap", pct: 0.3, color: "bg-[#d97706]" },
+    { name: "Mid-cap growth", pct: 0.2, color: "bg-[#2563eb]" },
+  ];
   const categories = [
     { label: "Living costs", value: analysis.annual_expenses, color: "bg-[#c8c4b7]" },
     { label: "EMIs & debt", value: analysis.annual_emi, color: "bg-[#d97706]" },
@@ -65,21 +75,7 @@ export default function Dashboard() {
           <Metric label={t("investableNext")} value={formatINR(analysis.investable_surplus, true)} note="After illustrative cover budget" icon={PiggyBank} testId="dashboard-investable-surplus-card" />
         </div>
 
-        <section className="mt-10" data-testid="dashboard-profile-kpi-section">
-          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0d7a5f]">Financial profile</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="dashboard-profile-kpi-title">{t("profileKpis")}</h2></div><p className="max-w-md text-xs leading-5 text-[#8a8f99]" data-testid="dashboard-profile-kpi-neutral-note">{t("kpiNeutralNote")}</p></div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiMetric label={t("emergencyCoverage")} value={`${analysis.kpis.emergency_coverage_pct.toFixed(1)}%`} rupeeDetail={`${formatINR(analysis.emergency_gap)} gap to 6-month fund`} formula="emergency savings ÷ (6 × monthly expenses) × 100" testId="kpi-emergency-coverage" />
-            <KpiMetric label={t("runwayMonths")} value={`${analysis.kpis.runway_months.toFixed(1)} months`} rupeeDetail={`${formatINR(profile.emergency_savings)} liquid savings`} formula="emergency savings ÷ monthly expenses" testId="kpi-runway-months" />
-            <KpiMetric label={t("termAdequacy")} value={`${analysis.kpis.term_cover_adequacy_pct.toFixed(1)}%`} rupeeDetail={`₹${analysis.term_gap_crore.toFixed(2)} Cr cover gap`} formula="existing term cover ÷ recommended term cover × 100" testId="kpi-term-adequacy" />
-            <KpiMetric label={t("healthAdequacy")} value={`${analysis.kpis.health_cover_adequacy_pct.toFixed(1)}%`} rupeeDetail={`₹${analysis.health_gap_lakh.toFixed(1)} L cover gap`} formula="existing health cover ÷ recommended health cover × 100" testId="kpi-health-adequacy" />
-            <KpiMetric label={t("savingsRate")} value={`${analysis.kpis.savings_rate_pct.toFixed(1)}%`} rupeeDetail={`${formatINR(analysis.annual_surplus_before_protection)} annual cash surplus`} formula="(income − expenses − EMI) ÷ income × 100" testId="kpi-savings-rate" />
-            <KpiMetric label={t("debtToIncome")} value={`${analysis.kpis.debt_to_income_pct.toFixed(1)}%`} rupeeDetail={`${formatINR(profile.monthly_emi)} monthly EMI`} formula="monthly EMI ÷ monthly household income × 100" benchmark={t("illustrativeThreshold")} testId="kpi-debt-to-income" />
-            <KpiMetric label={t("coverLiabilities")} value={`${analysis.kpis.cover_to_liabilities_ratio.toFixed(2)}×`} rupeeDetail={`${formatINR(uncoveredLiabilities)} liabilities beyond cover`} formula="existing term cover ÷ total liabilities" testId="kpi-cover-liabilities" />
-            <KpiMetric label={t("liabilitiesIncome")} value={`${analysis.kpis.liabilities_to_income_multiple.toFixed(2)}×`} rupeeDetail={`${formatINR(analysis.total_liabilities)} total liabilities`} formula="total liabilities ÷ annual household income" testId="kpi-liabilities-income" />
-          </div>
-        </section>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="mt-8 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
           <Card className="border-[#e4e1d8] bg-[#17181c] text-white shadow-none" data-testid="dashboard-protection-score-panel">
             <CardContent className="flex min-h-[290px] flex-col justify-between p-6 sm:p-8">
               <div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#a8d9c8]" data-testid="dashboard-score-label">Family safety snapshot</p><h2 className="mt-3 font-heading text-2xl font-semibold" data-testid="dashboard-score-title">Protection before performance.</h2></div><ShieldCheck className="size-5 text-[#a8d9c8]" /></div>
@@ -94,20 +90,59 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-3">
-          <Card className="border-[#e4e1d8] bg-white shadow-none lg:col-span-2" data-testid="dashboard-protection-actions-card">
-            <CardHeader className="p-6 pb-2 sm:p-8 sm:pb-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8a8f99]" data-testid="dashboard-actions-eyebrow">Your next 90 days</p><CardTitle className="mt-2 text-xl font-semibold text-[#17181c]" data-testid="dashboard-actions-title">Close the expensive gaps first.</CardTitle></CardHeader>
-            <CardContent className="grid gap-3 p-6 pt-3 sm:grid-cols-3 sm:p-8 sm:pt-3">
-              <Link to="/insurance" className="group rounded-xl border border-[#e4e1d8] p-4 transition-colors hover:border-[#0d7a5f] hover:bg-[#f8fbf9]" data-testid="dashboard-term-action-link"><p className="text-[10px] font-bold uppercase tracking-widest text-[#d97706]">01 / Term cover</p><p className="mt-3 text-sm font-semibold text-[#17181c]">Protect {analysis.term_gap_crore.toFixed(2)} Cr of income gap</p><span className="mt-5 flex items-center gap-1 text-xs font-semibold text-[#0d7a5f]">Compare plans <ChevronRight className="size-3 transition-transform group-hover:translate-x-1" /></span></Link>
-              <Link to="/insurance" className="group rounded-xl border border-[#e4e1d8] p-4 transition-colors hover:border-[#0d7a5f] hover:bg-[#f8fbf9]" data-testid="dashboard-health-action-link"><p className="text-[10px] font-bold uppercase tracking-widest text-[#0d7a5f]">02 / Health</p><p className="mt-3 text-sm font-semibold text-[#17181c]">Build a {analysis.recommended_health_cover_lakh}L family floater</p><span className="mt-5 flex items-center gap-1 text-xs font-semibold text-[#0d7a5f]">See the why <ChevronRight className="size-3 transition-transform group-hover:translate-x-1" /></span></Link>
-              <div className="rounded-xl border border-[#e4e1d8] bg-[#f8f7f4] p-4" data-testid="dashboard-emergency-fund-card"><p className="text-[10px] font-bold uppercase tracking-widest text-[#2563eb]">03 / Liquidity</p><p className="mt-3 text-sm font-semibold text-[#17181c]">{formatINR(analysis.emergency_gap, true)} to reach six months</p><span className="mt-5 block text-xs text-[#8a8f99]">Currently {analysis.emergency_months} months protected</span></div>
-            </CardContent>
-          </Card>
-          <Card className="border-[#e4e1d8] bg-[#fff9ef] shadow-none" data-testid="mutual-fund-allocation-card">
-            <CardHeader className="p-6 pb-2"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#a16207]" data-testid="mutual-fund-eyebrow">Surplus direction</p><CardTitle className="mt-2 text-xl font-semibold text-[#17181c]" data-testid="mutual-fund-title">Invest what protection leaves behind.</CardTitle></CardHeader>
-            <CardContent className="p-6 pt-3"><p className="text-sm leading-6 text-[#5c5f66]" data-testid="mutual-fund-description">Once the emergency gap is closed, a simple diversified starting split could look like this:</p><div className="mt-5 space-y-3 text-xs">{[["Nifty 50 index", "50%", "bg-[#0d7a5f]"], ["Flexi-cap", "30%", "bg-[#d97706]"], ["Mid-cap growth", "20%", "bg-[#2563eb]"]].map(([name, percentage, color]) => <div key={name} className="flex items-center gap-3" data-testid={`mutual-fund-${name.toLowerCase().replaceAll(" ", "-")}`}><span className={`size-2 rounded-full ${color}`} /><span className="flex-1 font-semibold text-[#17181c]">{name}</span><span className="font-mono font-bold text-[#5c5f66]">{percentage}</span></div>)}</div><p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="mutual-fund-disclaimer">Illustrative only — match the allocation to time horizon and risk capacity.</p></CardContent>
-          </Card>
-        </div>
+        <section className="mt-6" data-testid="dashboard-next-steps-section">
+          <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8a8f99]">What to do next</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="dashboard-next-steps-title">Protect, then invest — in that order.</h2></div>
+          <div className="mt-5 grid gap-6 lg:grid-cols-2">
+            <Card className="border-[#e4e1d8] bg-[#fff9ef] shadow-none" data-testid="dashboard-investment-card">
+              <CardHeader className="p-6 pb-2"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#a16207]" data-testid="investment-eyebrow">Surplus direction</p><CardTitle className="mt-2 text-xl font-semibold text-[#17181c]" data-testid="investment-title">Invest what protection leaves behind.</CardTitle></CardHeader>
+              <CardContent className="p-6 pt-3">
+                {emergencyGapOpen ? (
+                  <div data-testid="investment-emergency-blocker">
+                    <p className="text-sm leading-6 text-[#5c5f66]">Build your emergency fund before investing — it comes before insurance premiums in the priority order.</p>
+                    <p className="mt-4 font-mono text-2xl font-bold text-[#17181c]" data-testid="investment-emergency-gap-amount">{formatINR(analysis.emergency_gap, true)}</p>
+                    <p className="mt-1 text-xs text-[#8a8f99]">more needed to reach a 6-month fund ({analysis.emergency_months} months covered today)</p>
+                  </div>
+                ) : insuranceExceedsSurplus || analysis.investable_surplus <= 0 ? (
+                  <div data-testid="investment-insurance-blocker">
+                    <p className="text-sm leading-6 text-[#5c5f66]">Your recommended insurance premium exceeds what's left after expenses and EMIs — close that gap before investing.</p>
+                    <div className="mt-4 flex items-center justify-between text-xs"><span className="text-[#8a8f99]">Premium needed</span><span className="font-mono font-semibold text-[#17181c]" data-testid="investment-premium-needed">{formatINR(analysis.annual_insurance_budget, true)}/yr</span></div>
+                    <div className="mt-2 flex items-center justify-between text-xs"><span className="text-[#8a8f99]">Surplus available</span><span className="font-mono font-semibold text-[#17181c]" data-testid="investment-surplus-available">{formatINR(analysis.annual_surplus_before_protection, true)}/yr</span></div>
+                  </div>
+                ) : (
+                  <div data-testid="investment-sip-plan">
+                    <p className="text-sm leading-6 text-[#5c5f66]">After your protection budget, here's a simple diversified monthly SIP:</p>
+                    <p className="mt-4 font-mono text-2xl font-bold text-[#17181c]" data-testid="investment-monthly-amount">{formatINR(monthlyInvestable, true)}<span className="ml-1 text-xs font-sans font-normal text-[#8a8f99]">/ month</span></p>
+                    <div className="mt-5 space-y-3 text-xs">{fundAllocations.map((fund) => <div key={fund.name} className="flex items-center gap-3" data-testid={`investment-fund-${fund.name.toLowerCase().replaceAll(" ", "-")}`}><span className={`size-2 rounded-full ${fund.color}`} /><span className="flex-1 font-semibold text-[#17181c]">{fund.name}</span><span className="font-mono font-bold text-[#5c5f66]">{formatINR(monthlyInvestable * fund.pct, true)}</span></div>)}</div>
+                  </div>
+                )}
+                <p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="investment-disclaimer">Illustrative only — match the allocation to time horizon and risk capacity.</p>
+              </CardContent>
+            </Card>
+            <Card className="border-[#e4e1d8] bg-white shadow-none" data-testid="dashboard-insurance-status-card">
+              <CardHeader className="p-6 pb-2"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8a8f99]" data-testid="insurance-status-eyebrow">Protection coverage</p><CardTitle className="mt-2 text-xl font-semibold text-[#17181c]" data-testid="insurance-status-title">Where your cover stands.</CardTitle></div><ShieldCheck className="size-5 text-[#0d7a5f]" /></div></CardHeader>
+              <CardContent className="space-y-4 p-6 pt-3">
+                <div className="flex items-center justify-between border-b border-[#f1efe9] pb-3" data-testid="insurance-status-term-row"><div><p className="text-xs font-semibold text-[#17181c]">Term cover</p><p className="mt-1 text-[11px] text-[#8a8f99]">{profile.existing_term_cover_crore.toFixed(2)} Cr held → {analysis.recommended_term_cover_crore.toFixed(2)} Cr recommended</p></div><span className="font-mono text-sm font-bold text-[#d97706]" data-testid="insurance-status-term-gap">{analysis.term_gap_crore.toFixed(2)} Cr gap</span></div>
+                <div className="flex items-center justify-between border-b border-[#f1efe9] pb-3" data-testid="insurance-status-health-row"><div><p className="text-xs font-semibold text-[#17181c]">Health cover</p><p className="mt-1 text-[11px] text-[#8a8f99]">{profile.current_health_cover_lakh} L held → {analysis.recommended_health_cover_lakh} L recommended</p></div><span className="font-mono text-sm font-bold text-[#d97706]" data-testid="insurance-status-health-gap">{analysis.health_gap_lakh} L gap</span></div>
+                <div className="flex items-center justify-between" data-testid="insurance-status-budget-row"><p className="text-xs font-semibold text-[#17181c]">Annual premium to close both gaps</p><span className="font-mono text-sm font-bold text-[#17181c]" data-testid="insurance-status-budget">{formatINR(analysis.annual_insurance_budget, true)}/yr</span></div>
+                <Link to="/insurance" className="mt-2 flex items-center justify-between rounded-lg border border-[#e4e1d8] px-4 py-3 text-xs font-semibold text-[#0d7a5f] transition-colors hover:border-[#0d7a5f] hover:bg-[#f8fbf9]" data-testid="insurance-status-plans-link">{publishedPlanCount > 0 ? `Compare ${publishedPlanCount} published plan${publishedPlanCount === 1 ? "" : "s"}` : "No plans published yet — browse insurance"}<ChevronRight className="size-3.5" /></Link>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        <section className="mt-10" data-testid="dashboard-profile-kpi-section">
+          <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0d7a5f]">Financial profile</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="dashboard-profile-kpi-title">{t("profileKpis")}</h2></div><p className="max-w-md text-xs leading-5 text-[#8a8f99]" data-testid="dashboard-profile-kpi-neutral-note">{t("kpiNeutralNote")}</p></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiMetric label={t("emergencyCoverage")} value={`${analysis.kpis.emergency_coverage_pct.toFixed(1)}%`} rupeeDetail={`${formatINR(analysis.emergency_gap)} gap to 6-month fund`} formula="emergency savings ÷ (6 × monthly expenses) × 100" testId="kpi-emergency-coverage" />
+            <KpiMetric label={t("runwayMonths")} value={`${analysis.kpis.runway_months.toFixed(1)} months`} rupeeDetail={`${formatINR(profile.emergency_savings)} liquid savings`} formula="emergency savings ÷ monthly expenses" testId="kpi-runway-months" />
+            <KpiMetric label={t("termAdequacy")} value={`${analysis.kpis.term_cover_adequacy_pct.toFixed(1)}%`} rupeeDetail={`₹${analysis.term_gap_crore.toFixed(2)} Cr cover gap`} formula="existing term cover ÷ recommended term cover × 100" testId="kpi-term-adequacy" />
+            <KpiMetric label={t("healthAdequacy")} value={`${analysis.kpis.health_cover_adequacy_pct.toFixed(1)}%`} rupeeDetail={`₹${analysis.health_gap_lakh.toFixed(1)} L cover gap`} formula="existing health cover ÷ recommended health cover × 100" testId="kpi-health-adequacy" />
+            <KpiMetric label={t("savingsRate")} value={`${analysis.kpis.savings_rate_pct.toFixed(1)}%`} rupeeDetail={`${formatINR(analysis.annual_surplus_before_protection)} annual cash surplus`} formula="(income − expenses − EMI) ÷ income × 100" testId="kpi-savings-rate" />
+            <KpiMetric label={t("debtToIncome")} value={`${analysis.kpis.debt_to_income_pct.toFixed(1)}%`} rupeeDetail={`${formatINR(profile.monthly_emi)} monthly EMI`} formula="monthly EMI ÷ monthly household income × 100" benchmark={t("illustrativeThreshold")} testId="kpi-debt-to-income" />
+            <KpiMetric label={t("coverLiabilities")} value={`${analysis.kpis.cover_to_liabilities_ratio.toFixed(2)}×`} rupeeDetail={`${formatINR(uncoveredLiabilities)} liabilities beyond cover`} formula="existing term cover ÷ total liabilities" testId="kpi-cover-liabilities" />
+            <KpiMetric label={t("liabilitiesIncome")} value={`${analysis.kpis.liabilities_to_income_multiple.toFixed(2)}×`} rupeeDetail={`${formatINR(analysis.total_liabilities)} total liabilities`} formula="total liabilities ÷ annual household income" testId="kpi-liabilities-income" />
+          </div>
+        </section>
 
         <Card className="mt-6 border-[#eadcc8] bg-[#fffdf9] shadow-none" data-testid="dashboard-formula-card">
           <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8"><div><div className="flex items-center gap-2"><CircleAlert className="size-4 text-[#d97706]" /><p className="text-sm font-semibold text-[#17181c]" data-testid="dashboard-formula-title">Transparent by design</p></div><p className="mt-2 max-w-3xl text-xs leading-5 text-[#8a8f99]" data-testid="dashboard-formula-copy">{analysis.formula_notes.join(" ")}</p></div><Button variant="outline" className="shrink-0 border-[#d9c9ad] bg-white" onClick={() => window.alert(analysis.disclaimer)} data-testid="dashboard-disclaimer-button">Read disclaimer</Button></CardContent>
