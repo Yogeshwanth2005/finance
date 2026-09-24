@@ -89,6 +89,21 @@ async def test_funds_that_fail_or_glitch_are_left_out_and_counted():
     assert store.status == "ready"
 
 
+async def test_a_fund_whose_history_cannot_be_processed_is_left_out_and_never_aborts_the_refresh():
+    store, _, _ = make_store([entry("1"), entry("2")])
+
+    async def fetch_history(code):
+        if code == "2":
+            return [("not a date", 1.0), (END, 2.0)]  # sorting mixed types raises while the row is built
+        return growth()
+
+    store._fetch_history = fetch_history
+    await store.refresh()
+    assert names(store.top("3y")["large"]) == ["Fund 1"]
+    assert store.failed_count == 1
+    assert store.status == "ready"
+
+
 async def test_top_is_capped_at_ten_per_segment_but_search_is_not():
     store, _, _ = make_store([entry(str(i), house="Alpha Mutual Fund") for i in range(12)] + [entry("m1", segment="mid")])
     await store.refresh()

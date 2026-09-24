@@ -295,7 +295,11 @@ class FundStore:
                     except Exception:
                         logger.warning("NAV history fetch failed for scheme %s", entry.scheme_code)
                         return None
-                return build_row(entry, history)
+                try:
+                    return build_row(entry, history)
+                except Exception:  # one unusable history must leave that fund out, never abort the whole refresh
+                    logger.warning("NAV history unusable for scheme %s", entry.scheme_code)
+                    return None
 
             results = await asyncio.gather(*(load(entry) for entry in catalog))
             rows = [row for row in results if row is not None]
