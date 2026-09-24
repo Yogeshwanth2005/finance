@@ -12,12 +12,13 @@ class FundRow(BaseModel):
     scheme_code: str
     name: str
     fund_house: str
-    segment: Segment
+    category: str  # AMFI's own sub-category label, e.g. "Large Cap Fund"
+    segment: Segment | None  # None for every category outside the four equity segments
     nav: float
     nav_date: date
-    start_date: date  # first NAV on record: for a Direct plan that is never earlier than January 2013
-    returns: dict[str, float | None]  # percent, keys "1y" "3y" "5y" "max"; None when the fund has too little history
-    max_is_annualised: bool  # False for a fund under a year old: "max" is then its absolute return
+    start_date: date | None  # the fund's first NAV on record; None until the first-NAV pass reaches it
+    returns: dict[str, float | None]  # percent, keys "1y" "3y" "5y" "max"; None where the fund has no value for the window
+    max_is_annualised: bool | None  # False for a fund under a year old ("max" is then its absolute return); None while "max" is unknown
 
 
 Status = Literal["warming", "ready", "stale", "unavailable"]
@@ -31,11 +32,17 @@ class SegmentLists(BaseModel):
     small: list[FundRow] = Field(default_factory=list)
 
 
+class FundSectionResponse(BaseModel):
+    key: str  # a segment name, or "cat-" plus the category label as a slug
+    title: str
+    funds: list[FundRow]
+
+
 class FundsTopResponse(BaseModel):
     status: Status
-    as_of: date | None  # newest NAV date in the cache; None until the first load finishes
+    as_of: date | None  # newest NAV date across the stored rows; None until the first fill finishes
     window: Window
-    failed_count: int  # catalog funds left out because their NAV history could not be fetched or was unusable
+    max_pending: bool  # True while some fund's first NAV is unknown, so its Max return is still missing
     segments: SegmentLists
 
 
@@ -43,7 +50,7 @@ class FundsSearchResponse(BaseModel):
     status: Status
     as_of: date | None
     window: Window
-    failed_count: int
+    max_pending: bool
     query: str
     fund_houses: list[str]  # every fund house the query matched
-    groups: SegmentLists
+    sections: list[FundSectionResponse]

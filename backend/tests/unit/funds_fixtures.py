@@ -1,4 +1,4 @@
-"""A small AMFI NAVAll.txt lookalike: real layout (header row, category lines, fund-house lines, semicolon rows), invented schemes."""
+"""AMFI file lookalikes: real layouts (header row, category lines, fund-house lines, semicolon rows), invented schemes."""
 
 NAVALL_SAMPLE = """Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
 

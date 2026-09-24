@@ -1,19 +1,15 @@
-"""The live fetchers, exercised against a mock transport: no network (spec sections 5.1, 5.2)."""
+"""The live fetchers, exercised against a mock transport: no network (spec sections 5.1, 5.3)."""
 
 from datetime import date
 
 import httpx
 import pytest
 
-from lib.funds import FundStore, _format_amfi_day, build_default_store, fetch_amfi_catalog, fetch_mfapi_history, fetch_nav_range, parse_nav_report
+from lib.funds import _format_amfi_day, fetch_amfi_catalog, fetch_nav_range, parse_nav_report
 
 from .funds_fixtures import NAV_REPORT_SAMPLE, NAVALL_LIVE_CODES, NAVALL_SAMPLE
 
-MFAPI_PAYLOAD = {
-    "meta": {"scheme_code": 100001},
-    "data": [{"date": "23-09-2026", "nav": "150.10000"}, {"date": "22-09-2026", "nav": "149.90000"}],
-    "status": "SUCCESS",
-}
+START, END = date(2026, 9, 1), date(2026, 9, 7)
 
 
 def client_for(handler):
@@ -39,69 +35,6 @@ async def test_an_amfi_error_response_raises():
     async with client_for(lambda request: httpx.Response(503)) as client:
         with pytest.raises(httpx.HTTPStatusError):
             await fetch_amfi_catalog(client)
-
-
-async def test_mfapi_history_parses_day_month_year_dates_and_navs():
-    seen = {}
-
-    def handler(request):
-        seen["url"] = str(request.url)
-        return httpx.Response(200, json=MFAPI_PAYLOAD)
-
-    async with client_for(handler) as client:
-        history = await fetch_mfapi_history(client, "100001")
-    assert seen["url"] == "https://api.mfapi.in/mf/100001"
-    assert history == [(date(2026, 9, 23), 150.1), (date(2026, 9, 22), 149.9)]
-
-
-async def test_mfapi_is_retried_once_after_a_failure():
-    calls = []
-
-    def handler(request):
-        calls.append(request)
-        return httpx.Response(500) if len(calls) == 1 else httpx.Response(200, json=MFAPI_PAYLOAD)
-
-    async with client_for(handler) as client:
-        history = await fetch_mfapi_history(client, "100001")
-    assert len(calls) == 2
-    assert len(history) == 2
-
-
-async def test_mfapi_gives_up_after_the_retry():
-    calls = []
-
-    def handler(request):
-        calls.append(request)
-        return httpx.Response(500)
-
-    async with client_for(handler) as client:
-        with pytest.raises(httpx.HTTPStatusError):
-            await fetch_mfapi_history(client, "100001")
-    assert len(calls) == 2
-
-
-@pytest.mark.parametrize(
-    "payload, error",
-    [
-        ({"unexpected": 1}, KeyError),
-        ({"data": [{"date": "2026-09-23", "nav": "1.0"}]}, ValueError),
-        ({"data": [{"date": "23-09-2026", "nav": "N.A."}]}, ValueError),
-    ],
-)
-async def test_a_malformed_mfapi_payload_raises_after_the_retry(payload, error):
-    async with client_for(lambda request: httpx.Response(200, json=payload)) as client:
-        with pytest.raises(error):
-            await fetch_mfapi_history(client, "100001")
-
-
-async def test_the_default_store_starts_warming_and_closes_its_http_client():
-    store = build_default_store()
-    assert isinstance(store, FundStore)
-    assert store.status == "warming"
-    await store.aclose()
-
-
-START, END = date(2026, 9, 1), date(2026, 9, 7)
 
 
 def test_a_dated_report_keeps_only_positive_navs_on_real_dates_ascending_per_scheme():

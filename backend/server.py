@@ -15,7 +15,8 @@ load_dotenv(ROOT_DIR / '.env')
 # MongoDB connection
 from lib.db import client, db, ensure_indexes
 from lib.auth import seed_admin
-from lib.funds import build_default_store
+from lib.fund_repo import MongoFundRepo
+from lib.fund_store import build_default_store
 from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.chat import router as chat_router
@@ -28,8 +29,8 @@ from routers.profile import router as profile_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.index_task = asyncio.create_task(ensure_indexes())  # background: a big index build must not block boot
-    app.state.funds = build_default_store()
-    app.state.funds.start()  # background: warming fetches ~130 NAV histories, so it must not block boot either
+    app.state.funds = build_default_store(MongoFundRepo(db.fund_rows))
+    app.state.funds.start()  # background: loads the stored rows and refreshes them from AMFI if a day old, so it must not block boot either
     await seed_admin()
     yield
     await app.state.funds.aclose()
