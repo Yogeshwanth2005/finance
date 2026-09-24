@@ -27,3 +27,6 @@ INFLATION_PCT = 6
 RETURN_MARGIN_PCT = {"conservative": 3, "moderate": 4, "aggressive": 5}  # extra over inflation that counts as success
 EXPECTED_RETURN_PCT = {"large": 11, "mid": 13, "small": 14, "debt": 7, "gold": 8}  # assumed long-run returns, not measured ones
 STRESS_FALL_PCT = {"large": 37, "mid": 36, "small": 38, "debt": 0, "gold": 0}  # Jan-Apr 2020 median fall; debt and gold assumed flat
+
+AMFI_NAV_URL = "https://www.amfiindia.com/spages/NAVAll.txt"
+FUND_ACTIVE_NAV_MAX_AGE_DAYS = 7  # a scheme is live when its NAV is within this many days of the newest NAV in the file
