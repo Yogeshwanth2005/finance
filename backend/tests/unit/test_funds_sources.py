@@ -7,7 +7,7 @@ import pytest
 
 from lib.funds import FundStore, build_default_store, fetch_amfi_catalog, fetch_mfapi_history
 
-from .funds_fixtures import NAVALL_SAMPLE
+from .funds_fixtures import NAVALL_LIVE_CODES, NAVALL_SAMPLE
 
 MFAPI_PAYLOAD = {
     "meta": {"scheme_code": 100001},
@@ -32,7 +32,7 @@ async def test_the_amfi_file_is_downloaded_and_parsed():
         entries = await fetch_amfi_catalog(client)
     assert seen["url"] == "https://www.amfiindia.com/spages/NAVAll.txt"
     assert "SurakshaCFO" in seen["user_agent"]
-    assert {entry.scheme_code for entry in entries} == {"100001", "100005", "200002", "300001", "400001"}
+    assert {entry.scheme_code for entry in entries} == NAVALL_LIVE_CODES
 
 
 async def test_an_amfi_error_response_raises():

@@ -1,10 +1,10 @@
-"""parse_navall turns AMFI's NAVAll.txt into the Direct + Growth catalog of the four fund segments (spec section 5.1)."""
+"""parse_navall turns AMFI's NAVAll.txt into the Direct + Growth catalog of every live scheme, tagging the four equity segments (spec section 5.1)."""
 
 import pytest
 
-from lib.funds import _segment, parse_navall
+from lib.funds import _category_label, _segment, parse_navall
 
-from .funds_fixtures import NAVALL_SAMPLE
+from .funds_fixtures import NAVALL_LIVE_CODES, NAVALL_SAMPLE
 
 INDEX_CATEGORY = "Open Ended Schemes(Other Scheme - Index Funds)"
 
@@ -13,14 +13,14 @@ def by_code(text=NAVALL_SAMPLE):
     return {entry.scheme_code: entry for entry in parse_navall(text)}
 
 
-def test_keeps_only_direct_growth_schemes_of_the_four_segments():
-    found = by_code()
-    assert {code: entry.segment for code, entry in found.items()} == {
-        "100001": "large",
-        "100005": "large",
-        "200002": "mid",
-        "300001": "small",
-        "400001": "nifty",
+def test_keeps_every_live_direct_growth_scheme_whatever_its_category():
+    assert set(by_code()) == NAVALL_LIVE_CODES
+
+
+def test_the_four_equity_segments_are_tagged_and_every_other_scheme_has_none():
+    assert {code: entry.segment for code, entry in by_code().items()} == {
+        "100001": "large", "100005": "large", "100010": None, "200002": "mid", "300001": "small",
+        "400001": "nifty", "400002": None, "400003": None, "400004": None, "400005": None, "400006": None, "500001": None,
     }
 
 
@@ -28,8 +28,9 @@ def test_regular_plans_and_idcw_options_are_left_out():
     assert "100002" not in by_code() and "100003" not in by_code()
 
 
-def test_large_and_mid_cap_is_neither_a_large_nor_a_mid_fund():
-    assert "100010" not in by_code()
+def test_large_and_mid_cap_is_kept_but_is_neither_a_large_nor_a_mid_fund():
+    entry = by_code()["100010"]
+    assert entry.segment is None and entry.category == "Large & Mid Cap Fund"
 
 
 def test_a_scheme_whose_nav_is_stale_against_the_file_is_dropped():
@@ -44,8 +45,13 @@ def test_a_row_without_a_numeric_nav_is_skipped():
     assert "200001" not in by_code()
 
 
-def test_close_ended_schemes_are_ignored():
-    assert "500001" not in by_code()
+def test_close_ended_schemes_are_kept_under_their_own_label():
+    assert by_code()["500001"].category == "Growth"
+
+
+def test_a_row_carries_the_label_of_the_category_line_above_it():
+    found = by_code()
+    assert [found[code].category for code in ("100001", "200002", "300001", "400001")] == ["Large Cap Fund", "Mid Cap Fund", "Small Cap Fund", "Index Funds"]
 
 
 def test_fund_house_is_the_most_recent_house_line_above_the_row():
@@ -65,11 +71,35 @@ def test_windows_line_endings_and_non_ascii_names_parse_the_same():
     crlf = by_code(NAVALL_SAMPLE.replace("\n", "\r\n"))
     assert set(crlf) == set(by_code())
     assert crlf["100005"].name == "Beta Investor’s Large Cap Fund"
+    assert crlf["100001"].category == "Large Cap Fund"
+
+
+def test_a_category_line_with_spaces_inside_the_parentheses_is_still_a_category_line():
+    text = "Open Ended Schemes ( Equity Scheme - Large Cap Fund )\n\nAlpha Mutual Fund\n\n900001;INF;-;Alpha Large Cap Fund;Direct Plan;Growth;10.0000;23-Sep-2026\n"
+    entry = by_code(text)["900001"]
+    assert (entry.category, entry.segment) == ("Large Cap Fund", "large")
 
 
 @pytest.mark.parametrize("text", ["", "\n\n", "garbage", "a;b;c", "Scheme Code;x\n\nOpen Ended Schemes(Equity Scheme - Large Cap Fund)\n"])
 def test_empty_or_unrecognised_text_gives_an_empty_catalog(text):
     assert parse_navall(text) == []
+
+
+@pytest.mark.parametrize(
+    "header, label",
+    [
+        ("Open Ended Schemes(Equity Scheme - Large Cap Fund)", "Large Cap Fund"),
+        ("Open Ended Schemes(Equity Schemes - Large Cap Fund)", "Large Cap Fund"),
+        ("Open Ended Schemes(Other Scheme - Index Funds)", "Index Funds"),
+        ("Close Ended Schemes(ELSS)", "ELSS"),
+        ("Open Ended Schemes(Fund of Funds Scheme (Domestic))", "Fund of Funds Scheme (Domestic)"),
+        ("Open Ended Schemes(Exchange Traded Funds (ETFs) - Debt ETF)", "Debt ETF"),
+        ("Open Ended Schemes ( Debt Scheme - Overnight Fund )", "Overnight Fund"),
+        ("Open Ended Schemes(Solution Oriented Scheme - Children\N{REPLACEMENT CHARACTER}s Fund)", "Children's Fund"),
+    ],
+)
+def test_the_category_label_is_amfis_own_text_after_the_first_dash(header, label):
+    assert _category_label(header) == label
 
 
 @pytest.mark.parametrize(

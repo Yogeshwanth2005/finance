@@ -51,3 +51,6 @@ Gamma Mutual Fund
 
 500001;INF000G05001;-;Gamma Fixed Term Large Cap Fund;Direct Plan;Growth Option;10.0000;23-Sep-2026
 """
+
+# every scheme of NAVALL_SAMPLE that is Direct + Growth, has a numeric NAV and is live against the file's newest date
+NAVALL_LIVE_CODES = {"100001", "100005", "100010", "200002", "300001", "400001", "400002", "400003", "400004", "400005", "400006", "500001"}

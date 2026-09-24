@@ -22,7 +22,7 @@ from models.funds import FundRow
 SEGMENTS = ("nifty", "large", "mid", "small")
 
 _MONTHS = {name: number for number, name in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), start=1)}
-_CATEGORY_LINE = re.compile(r"Schemes?\(.*\)$")
+_CATEGORY_LINE = re.compile(r"Schemes?\s*\(.*\)\s*$")
 # "Nifty 50" (the trailing \b keeps "Nifty 500" out) or SBI-style "Nifty Index Fund", which also tracks the Nifty 50
 _NIFTY_50 = re.compile(r"\bnifty\s*50\b|\bnifty\s+index\b", re.IGNORECASE)
 _NIFTY_VARIANT = re.compile(r"next|equal|value|quality|alpha|momentum|low\s*vol|dividend", re.IGNORECASE)
@@ -33,9 +33,10 @@ class CatalogEntry:
     scheme_code: str
     name: str
     fund_house: str
-    segment: str
+    segment: str | None  # nifty, large, mid or small; None for every other category
     nav: float
     nav_date: date
+    category: str = ""  # AMFI's own sub-category label, e.g. "Large Cap Fund"
 
 
 def _parse_amfi_date(text: str) -> date | None:
@@ -72,15 +73,28 @@ def _segment(category: str, name: str) -> str | None:
     return None
 
 
+def _category_label(header: str) -> str:
+    """AMFI's own label for a category line: the text inside the outermost parentheses, after the first " - " when there is one.
+
+    "Open Ended Schemes(Equity Scheme - Large Cap Fund)" gives "Large Cap Fund"; "Close Ended Schemes(ELSS)" gives "ELSS".
+    U+FFFD, which AMFI's file has where a name should hold an apostrophe, becomes one.
+    """
+    start, end = header.find("("), header.rfind(")")
+    inner = header[start + 1:end] if 0 <= start < end else header
+    return inner.split(" - ", 1)[-1].replace("\N{REPLACEMENT CHARACTER}", "'").strip()
+
+
 def parse_navall(text: str) -> list[CatalogEntry]:
     """AMFI's NAVAll.txt: a category header line, a fund-house line, then rows of code;isin;isin;name;plan;option;nav;date.
 
-    Keeps Direct + Growth schemes of the four segments whose NAV is within FUND_ACTIVE_NAV_MAX_AGE_DAYS of the newest
+    Keeps every Direct + Growth scheme, whatever its category, whose NAV is within FUND_ACTIVE_NAV_MAX_AGE_DAYS of the newest
     NAV in the file (the file's own clock, not the wall clock, so a stale download is not misread as everything dead).
+    `segment` is one of the four equity segments, or None.
     """
     entries: list[CatalogEntry] = []
     newest: date | None = None
-    category = ""
+    category = ""  # the category line above the current rows, kept whole for the segment rules
+    label = ""
     fund_house = ""
     for raw in text.splitlines():
         line = raw.strip()
@@ -89,6 +103,7 @@ def parse_navall(text: str) -> list[CatalogEntry]:
         if ";" not in line:
             if _CATEGORY_LINE.search(line):
                 category = line
+                label = _category_label(line)
             else:
                 fund_house = line
             continue
@@ -102,14 +117,11 @@ def parse_navall(text: str) -> list[CatalogEntry]:
             newest = nav_date
         if "direct" not in parts[4].lower() or not _is_growth(parts[5]):
             continue
-        segment = _segment(category, parts[3])
-        if segment is None:
-            continue
         try:
             nav = float(parts[6])
         except ValueError:  # "N.A." while a scheme has no NAV yet
             continue
-        entries.append(CatalogEntry(parts[0], parts[3].strip(), fund_house, segment, nav, nav_date))
+        entries.append(CatalogEntry(parts[0], parts[3].strip(), fund_house, _segment(category, parts[3]), nav, nav_date, label))
     if newest is None:
         return []
     return [entry for entry in entries if (newest - entry.nav_date).days <= FUND_ACTIVE_NAV_MAX_AGE_DAYS]
