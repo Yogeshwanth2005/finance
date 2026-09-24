@@ -36,3 +36,4 @@ FUND_WINDOW_START_TOLERANCE_DAYS = 7  # a fund launched this soon after a window
 FUND_CACHE_TTL_HOURS = 24
 FUND_FETCH_CONCURRENCY = 6  # simultaneous mfapi calls
 FUND_REFRESH_RETRY_MINUTES = 5  # after a failed refresh, wait this long before trying again
+MFAPI_SCHEME_URL = "https://api.mfapi.in/mf/{code}"  # NAV history for one scheme, newest first

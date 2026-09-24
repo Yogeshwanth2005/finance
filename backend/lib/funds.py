@@ -11,9 +11,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
+import httpx
+
 from lib.finance_config import (
-    FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_CACHE_TTL_HOURS, FUND_FETCH_CONCURRENCY, FUND_GLITCH_MOVE_PCT,
-    FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N, FUND_WINDOW_START_TOLERANCE_DAYS,
+    AMFI_NAV_URL, FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_CACHE_TTL_HOURS, FUND_FETCH_CONCURRENCY, FUND_GLITCH_MOVE_PCT,
+    FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N, FUND_WINDOW_START_TOLERANCE_DAYS, MFAPI_SCHEME_URL,
 )
 from models.funds import FundRow
 
@@ -323,3 +325,37 @@ class FundStore:
                 await self._task
         if self._close is not None:
             await self._close()
+
+
+# --- live sources (spec sections 5.1, 5.2) --------------------------------------------------------------------------
+
+_HEADERS = {"User-Agent": "SurakshaCFO-demo/1.0 (educational project)"}
+
+
+async def fetch_amfi_catalog(client: httpx.AsyncClient) -> list[CatalogEntry]:
+    response = await client.get(AMFI_NAV_URL, headers=_HEADERS, timeout=60)
+    response.raise_for_status()
+    return parse_navall(response.text)
+
+
+async def _get_history(client: httpx.AsyncClient, scheme_code: str) -> History:
+    response = await client.get(MFAPI_SCHEME_URL.format(code=scheme_code), headers=_HEADERS, timeout=60)
+    response.raise_for_status()
+    return [(datetime.strptime(item["date"], "%d-%m-%Y").date(), float(item["nav"])) for item in response.json()["data"]]
+
+
+async def fetch_mfapi_history(client: httpx.AsyncClient, scheme_code: str) -> History:
+    """NAV history from mfapi.in (dd-mm-yyyy dates, newest first). The mirror is free and sometimes slow, so one retry."""
+    try:
+        return await _get_history(client, scheme_code)
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        return await _get_history(client, scheme_code)
+
+
+def build_default_store() -> FundStore:
+    client = httpx.AsyncClient(follow_redirects=True)
+    return FundStore(
+        fetch_catalog=lambda: fetch_amfi_catalog(client),
+        fetch_history=lambda scheme_code: fetch_mfapi_history(client, scheme_code),
+        close=client.aclose,
+    )
