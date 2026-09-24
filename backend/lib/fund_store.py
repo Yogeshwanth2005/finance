@@ -19,7 +19,7 @@ from typing import Protocol
 import httpx
 
 from lib.finance_config import (
-    FUND_CACHE_TTL_HOURS, FUND_CHECKPOINT_MAX_DAY_TRIES, FUND_CHECKPOINT_MIN_ROWS, FUND_FIRST_NAV_MAX_FAILURES, FUND_FIRST_NAV_START,
+    FUND_CACHE_TTL_HOURS, FUND_CATALOG_MIN_KEEP_RATIO, FUND_CHECKPOINT_MAX_DAY_TRIES, FUND_CHECKPOINT_MIN_ROWS, FUND_FIRST_NAV_MAX_FAILURES, FUND_FIRST_NAV_START,
     FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N,
 )
 from lib.fund_repo import StoredFund
@@ -231,6 +231,8 @@ class FundStore:
         catalog = await self._fetch_catalog()
         if not catalog:
             raise RuntimeError("AMFI's catalog came back empty")
+        if len(catalog) < len(self._rows) * FUND_CATALOG_MIN_KEEP_RATIO:  # e.g. one future-dated NAV makes every other scheme look dead
+            raise RuntimeError(f"AMFI's catalog holds {len(catalog)} schemes against {len(self._rows)} stored")
         newest = max(entry.nav_date for entry in catalog)
         downloads: dict[str, dict[str, History]] = {}
         for key, (start, end) in fetch_plan(newest).items():

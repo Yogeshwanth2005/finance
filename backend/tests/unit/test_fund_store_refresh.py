@@ -121,6 +121,17 @@ async def test_an_empty_catalog_with_no_rows_is_unavailable():
     assert store.status == "unavailable"
 
 
+async def test_a_catalog_that_collapses_to_under_half_the_stored_rows_is_a_failure_and_never_deletes_anything():
+    # one future-dated NAV in AMFI's file makes every other scheme look dead, so the catalog arrives with a single scheme
+    codes = ["1", "2", "3", "4", "5"]
+    store, _, repo, _ = make_store([entry("1")], seeded=[stored(code) for code in codes])
+    await store.load()
+    await store.refresh()
+    assert store.status == "stale"
+    assert sorted(by_code(store)) == codes and sorted(repo.rows) == codes
+    assert repo.upserts == [] and repo.deleted_keeping == []
+
+
 async def test_a_delisted_scheme_is_removed_from_memory_and_from_the_repo():
     store, _, repo, _ = make_store([entry("1")], seeded=[stored("1"), stored("2")])
     await store.load()
