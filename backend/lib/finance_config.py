@@ -33,3 +33,6 @@ FUND_ACTIVE_NAV_MAX_AGE_DAYS = 7  # a scheme is live when its NAV is within this
 FUND_TOP_N = 10  # funds per segment on the dashboard's top lists
 FUND_GLITCH_MOVE_PCT = 35  # a move this big between two consecutive NAVs is a data glitch, not a price move
 FUND_WINDOW_START_TOLERANCE_DAYS = 7  # a fund launched this soon after a window's start still gets that window
+FUND_CACHE_TTL_HOURS = 24
+FUND_FETCH_CONCURRENCY = 6  # simultaneous mfapi calls
+FUND_REFRESH_RETRY_MINUTES = 5  # after a failed refresh, wait this long before trying again

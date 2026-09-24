@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 import re
 from bisect import bisect_right
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
-from lib.finance_config import FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_GLITCH_MOVE_PCT, FUND_WINDOW_START_TOLERANCE_DAYS
+from lib.finance_config import (
+    FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_CACHE_TTL_HOURS, FUND_FETCH_CONCURRENCY, FUND_GLITCH_MOVE_PCT,
+    FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N, FUND_WINDOW_START_TOLERANCE_DAYS,
+)
 from models.funds import FundRow
 
 SEGMENTS = ("nifty", "large", "mid", "small")
@@ -202,3 +209,117 @@ def rank_rows(rows: list[FundRow], window: str) -> list[FundRow]:
     else:
         ranked.sort(key=lambda row: (-row.returns[window], row.name))
     return ranked
+
+
+# --- cache (spec section 5.3) ---------------------------------------------------------------------------------------
+
+logger = logging.getLogger(__name__)
+
+CatalogFetcher = Callable[[], Awaitable[list[CatalogEntry]]]
+HistoryFetcher = Callable[[str], Awaitable[History]]
+
+
+class FundStore:
+    """In-process fund cache, rebuilt from AMFI + mfapi at startup and again once it is FUND_CACHE_TTL_HOURS old.
+
+    Nothing is persisted: Render's free tier sleeps and wipes memory, and a cold start simply warms the cache again.
+    The fetchers are injected so tests need no network.
+    """
+
+    def __init__(
+        self,
+        fetch_catalog: CatalogFetcher,
+        fetch_history: HistoryFetcher,
+        *,
+        close: Callable[[], Awaitable[None]] | None = None,
+        now: Callable[[], datetime] | None = None,
+    ):
+        self._fetch_catalog = fetch_catalog
+        self._fetch_history = fetch_history
+        self._close = close
+        self._now = now or (lambda: datetime.now(timezone.utc))
+        self._rows: list[FundRow] = []
+        self._loaded_at: datetime | None = None
+        self._last_attempt: datetime | None = None
+        self._last_failed = False
+        self._lock = asyncio.Lock()
+        self._task: asyncio.Task | None = None
+        self.as_of: date | None = None
+        self.failed_count = 0  # catalog funds left out of the last load: fetch failed, or the history was unusable
+
+    @property
+    def status(self) -> str:
+        if not self._rows:
+            return "unavailable" if self._last_failed else "warming"
+        expired = self._now() - self._loaded_at > timedelta(hours=FUND_CACHE_TTL_HOURS)
+        return "stale" if self._last_failed or expired else "ready"
+
+    def start(self) -> None:
+        """Begin a background refresh. Needs a running event loop."""
+        self._task = asyncio.get_running_loop().create_task(self.refresh())
+
+    def ensure_fresh(self) -> None:
+        """Called on each request: start a background refresh when data is missing or expired and none is running."""
+        if self._lock.locked() or (self._task is not None and not self._task.done()):
+            return
+        now = self._now()
+        if self._last_attempt is not None and now - self._last_attempt < timedelta(minutes=FUND_REFRESH_RETRY_MINUTES):
+            return
+        if self._loaded_at is not None and not self._last_failed and now - self._loaded_at <= timedelta(hours=FUND_CACHE_TTL_HOURS):
+            return
+        self.start()
+
+    async def refresh(self) -> None:
+        """Rebuild the cache. Single-flight: a call made while another is running returns at once. A failure keeps the old data."""
+        if self._lock.locked():
+            return
+        async with self._lock:
+            self._last_attempt = self._now()
+            try:
+                catalog = await self._fetch_catalog()
+            except Exception:
+                logger.exception("fund catalog fetch failed")
+                catalog = []
+            if not catalog:
+                self._last_failed = True
+                return
+
+            semaphore = asyncio.Semaphore(FUND_FETCH_CONCURRENCY)
+
+            async def load(entry: CatalogEntry) -> FundRow | None:
+                async with semaphore:
+                    try:
+                        history = await self._fetch_history(entry.scheme_code)
+                    except Exception:
+                        logger.warning("NAV history fetch failed for scheme %s", entry.scheme_code)
+                        return None
+                return build_row(entry, history)
+
+            results = await asyncio.gather(*(load(entry) for entry in catalog))
+            rows = [row for row in results if row is not None]
+            if not rows:
+                self._last_failed = True
+                return
+            self._rows = rows
+            self.failed_count = len(results) - len(rows)
+            self.as_of = max(row.nav_date for row in rows)
+            self._loaded_at = self._now()
+            self._last_failed = False
+
+    def top(self, window: str) -> dict[str, list[FundRow]]:
+        return {segment: rank_rows([row for row in self._rows if row.segment == segment], window)[:FUND_TOP_N] for segment in SEGMENTS}
+
+    def search(self, query: str, window: str) -> tuple[list[str], dict[str, list[FundRow]]]:
+        """Funds of every fund house whose name contains `query` (case-insensitive plain substring), grouped by segment, uncapped."""
+        needle = query.strip().lower()
+        houses = sorted({row.fund_house for row in self._rows if needle and needle in row.fund_house.lower()})
+        matched = [row for row in self._rows if row.fund_house in houses]
+        return houses, {segment: rank_rows([row for row in matched if row.segment == segment], window) for segment in SEGMENTS}
+
+    async def aclose(self) -> None:
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+        if self._close is not None:
+            await self._close()
