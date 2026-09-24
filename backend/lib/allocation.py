@@ -2,6 +2,7 @@ from lib.finance_config import (
     BASE_EQUITY_AGE_CONSTANT, RISK_TOLERANCE_MULTIPLIERS,
     SHORT_HORIZON_THRESHOLD, SHORT_HORIZON_SHIFT, GOLD_ALLOCATION_PCT,
     FUND_EXAMPLES_PER_CATEGORY, GROWTH_SHARE_BASE_PCT, MID_SHARE_OF_GROWTH,
+    INFLATION_PCT, RETURN_MARGIN_PCT, EXPECTED_RETURN_PCT, STRESS_FALL_PCT,
 )
 
 # Section 5.2's example: equity_pct -> "large-cap index fund or diversified
@@ -58,3 +59,60 @@ def compute_equity_split(risk_tolerance: str, equity_pct: float) -> dict:
     # small takes the remainder so the three always add back up to the equity slice
     small_pct = round(equity_pct - large_pct - mid_pct, 1)
     return {"large_pct": large_pct, "mid_pct": mid_pct, "small_pct": small_pct}
+
+
+def _weighted(per_bucket: dict[str, float], buckets: dict[str, float]) -> float:
+    return sum(buckets[name] * per_bucket[name] for name in buckets) / 100
+
+
+def _equity_blend(per_bucket: dict[str, float], risk_tolerance: str) -> float:
+    large_share, mid_share, small_share = _equity_shares(risk_tolerance)
+    return (large_share * per_bucket["large"] + mid_share * per_bucket["mid"] + small_share * per_bucket["small"]) / 100
+
+
+# Spec section 6.2. Returns are assumptions from finance_config, never measured past returns: a strong recent run
+# (gold, small cap) would otherwise steer every profile into the same corner.
+def compute_goal_check(risk_tolerance: str, investment_horizon_years: int, allocation: dict, split: dict) -> dict:
+    buckets = {
+        "large": split["large_pct"], "mid": split["mid_pct"], "small": split["small_pct"],
+        "debt": allocation["debt_pct"], "gold": allocation["gold_pct"],
+    }
+    margin = RETURN_MARGIN_PCT[risk_tolerance]
+    target = INFLATION_PCT + margin
+    expected = _weighted(EXPECTED_RETURN_PCT, buckets)
+    beats_target = expected >= target
+
+    reachable: bool | None = True if beats_target else None
+    suggestion_suppressed = False
+    min_equity_pct = None
+    crash_loss_at_min_equity_pct = None
+    if not beats_target:
+        if investment_horizon_years <= SHORT_HORIZON_THRESHOLD:
+            # a short horizon is exactly when a fall cannot be waited out: report the return, never push equity up
+            suggestion_suppressed = True
+        else:
+            gold = allocation["gold_pct"]
+            spread = _equity_blend(EXPECTED_RETURN_PCT, risk_tolerance) - EXPECTED_RETURN_PCT["debt"]
+            # expected return is linear in equity when gold and the cap shares are held fixed and debt takes the rest
+            needed = (100 * target - gold * EXPECTED_RETURN_PCT["gold"] - (100 - gold) * EXPECTED_RETURN_PCT["debt"]) / spread if spread > 0 else None
+            if needed is None or needed > 100 - gold:
+                reachable = False
+            else:
+                reachable = True
+                min_equity_pct = round(needed, 1)
+                crash_loss_at_min_equity_pct = round(
+                    (needed * _equity_blend(STRESS_FALL_PCT, risk_tolerance) + (100 - gold - needed) * STRESS_FALL_PCT["debt"] + gold * STRESS_FALL_PCT["gold"]) / 100, 1
+                )
+
+    return {
+        "inflation_pct": INFLATION_PCT,
+        "margin_pct": margin,
+        "target_pct": target,
+        "expected_return_pct": round(expected, 1),
+        "beats_target": beats_target,
+        "reachable": reachable,
+        "suggestion_suppressed": suggestion_suppressed,
+        "min_equity_pct": min_equity_pct,
+        "crash_loss_pct": round(_weighted(STRESS_FALL_PCT, buckets), 1),
+        "crash_loss_at_min_equity_pct": crash_loss_at_min_equity_pct,
+    }
