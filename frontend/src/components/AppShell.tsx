@@ -6,10 +6,10 @@ import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
 const navItems = [
-  { to: "/", label: "Profile", icon: Sparkles, testId: "nav-profile-wizard-link" },
-  { to: "/dashboard", label: "Dashboard", icon: BarChart3, testId: "nav-dashboard-link" },
-  { to: "/investments", label: "Investments", icon: TrendingUp, testId: "nav-investments-link" },
-  { to: "/insurance", label: "Insurance", icon: ShieldCheck, testId: "nav-insurance-plans-link" },
+  { to: "/", labelKey: "profile", icon: Sparkles, testId: "nav-profile-wizard-link" },
+  { to: "/dashboard", labelKey: "dashboard", icon: BarChart3, testId: "nav-dashboard-link" },
+  { to: "/investments", labelKey: "investmentsPage", icon: TrendingUp, testId: "nav-investments-link" },
+  { to: "/insurance", labelKey: "insurance", icon: ShieldCheck, testId: "nav-insurance-plans-link" },
 ];
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -42,7 +42,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Link>
 
           <nav className="flex items-center gap-1 rounded-xl border border-[#e4e1d8] bg-white/70 p-1" data-testid="main-navigation">
-            {visibleNavItems.map(({ to, label, icon: Icon, testId }) => (
+            {visibleNavItems.map(({ to, labelKey, icon: Icon, testId }) => (
               <Link
                 key={to}
                 to={to}
@@ -50,7 +50,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${location.pathname === to ? "bg-[#17181c] text-white" : "text-[#5c5f66] hover:bg-[#f1efe9] hover:text-[#17181c]"}`}
               >
                 <Icon className="size-3.5" />
-                <span className="hidden md:inline">{t(label.toLowerCase())}</span>
+                <span className="hidden md:inline">{t(labelKey)}</span>
               </Link>
             ))}
             {user?.role === "admin" && <Link to="/admin/documents" data-testid="nav-admin-documents-link" className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${location.pathname === "/admin/documents" ? "bg-[#17181c] text-white" : "text-[#5c5f66] hover:bg-[#f1efe9] hover:text-[#17181c]"}`}><LockKeyhole className="size-3.5" /><span className="hidden md:inline">Admin</span></Link>}

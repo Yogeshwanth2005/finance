@@ -97,7 +97,7 @@ Reasoning in decisions/log.md, 2026-09-24 (first entry). Frontend only; no backe
 |---|---|---|
 | 1 | `pages/Investments.tsx` at `/investments` (behind `ProtectedRoute`, same profile-complete redirect and sample fallback as the dashboard) with a nav tab in `AppShell` | **Done**: typecheck clean, 13 Vitest tests pass, `vite build` ok |
 | 2 | Surplus direction card extracted to `components/SurplusDirectionCard.tsx` (prop `block`: `"emergency"` / `"insurance"` / `null`, computed once in the page and shared with `FundExplorer`); `data-testid`s unchanged | **Done** |
-| 3 | Dashboard drops the card, `FundExplorer` and the "Investable next" metric (metric row is now 3 wide); a link card to `/investments` takes the card's place | **Done**. **Not looked at in a browser**: it needs the backend, and starting that connects to Atlas and refreshes from AMFI |
+| 3 | Dashboard drops the card, `FundExplorer` and the "Investable next" metric (metric row is now 3 wide); a link card to `/investments` takes the card's place | **Done**: browser-verified against the local backend for all three card states and in en / hi / te / ta; a nav-label bug found there ("Current investments (₹)") is fixed with the `investmentsPage` key |
 
 ---
 
@@ -189,7 +189,8 @@ Reasoning in decisions/log.md, 2026-09-24 (first entry). Frontend only; no backe
 - **Unsourced premium constants in `_analysis()`**: ₹17,500 per crore of term gap and ₹22,000 +
   ₹4,000 per dependent for health feed `investable_surplus`. The `max(10, …)` floor on the health need
   never applies (its smallest result is 12).
-- **hi/te/ta labels** for risk tolerance and investment horizon (`i18n.ts`) have had no native review.
+- **hi/te/ta labels** for risk tolerance and investment horizon, and the "Investments" tab word
+  (`investmentsPage`), in `i18n.ts` have had no native review.
 - **Allocation defaults are silent**: stored profiles without the two new fields read as moderate /
   10 years until the user re-saves the profile.
 - **`investable_surplus` ignores the emergency-fund gap** (2026-09-23). `_analysis()` subtracts only the

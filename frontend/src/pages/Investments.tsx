@@ -29,7 +29,7 @@ export default function Investments() {
       <section className="mx-auto max-w-7xl px-4 pb-12 pt-10 sm:px-6 lg:px-8 lg:pt-14">
         <div className="border-b border-[#e4e1d8] pb-8" data-testid="investments-header-copy">
           <div className="mb-4 flex items-center gap-2"><Badge variant="outline" className="border-[#d7ebe4] bg-[#eaf6f1] text-[#0d7a5f]" data-testid="investments-status-badge">{isSample ? "Sample benchmark" : "Profile analysed"}</Badge><span className="text-xs text-[#8a8f99]">India / INR · rule-based view</span></div>
-          <h1 className="font-heading text-4xl font-bold tracking-[-0.04em] text-[#17181c] sm:text-5xl" data-testid="investments-heading">{t("investments")}</h1>
+          <h1 className="font-heading text-4xl font-bold tracking-[-0.04em] text-[#17181c] sm:text-5xl" data-testid="investments-heading">{t("investmentsPage")}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#5c5f66]" data-testid="investments-subheading">Protect, then invest — in that order. Here is what your surplus could do once protection is covered, and real funds to browse for each slice.</p>
         </div>
 

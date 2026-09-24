@@ -12,7 +12,7 @@ export const languageOptions: Array<{ value: Language; label: string; short: str
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
-    profile: "Profile", dashboard: "Dashboard", insurance: "Insurance", admin: "Admin", familyEngine: "Family protection engine",
+    profile: "Profile", dashboard: "Dashboard", insurance: "Insurance", investmentsPage: "Investments", admin: "Admin", familyEngine: "Family protection engine",
     signOut: "Sign out", settings: "Profile & settings", language: "Language", indiaInr: "India / INR",
     footer: "SurakshaCFO provides educational estimates, not regulated financial advice. Always verify policy wording with a licensed advisor.",
     profileEyebrow: "Private financial map", profileTitle: "Make your family’s financial safety net visible.", profileDescription: "A four-minute profile turns scattered numbers into a clear order of protection: emergency fund, insurance gaps, then investable surplus.",
@@ -27,7 +27,7 @@ const translations: Record<Language, Record<string, string>> = {
     financialProfile: "Family financial profile", editProfile: "Edit financial details", profileReady: "Profile complete", profilePending: "Profile pending", security: "Security", currentPassword: "Current password", newPassword: "New password", confirmPassword: "Confirm new password", changePassword: "Change password",
   },
   hi: {
-    profile: "प्रोफ़ाइल", dashboard: "डैशबोर्ड", insurance: "बीमा", admin: "एडमिन", familyEngine: "परिवार सुरक्षा इंजन",
+    profile: "प्रोफ़ाइल", dashboard: "डैशबोर्ड", insurance: "बीमा", investmentsPage: "निवेश", admin: "एडमिन", familyEngine: "परिवार सुरक्षा इंजन",
     signOut: "साइन आउट", settings: "प्रोफ़ाइल और सेटिंग्स", language: "भाषा", indiaInr: "भारत / INR",
     footer: "SurakshaCFO शैक्षिक अनुमान देता है, विनियमित वित्तीय सलाह नहीं। खरीदने से पहले पॉलिसी की शर्तें सत्यापित करें।",
     profileEyebrow: "निजी वित्तीय मानचित्र", profileTitle: "अपने परिवार की वित्तीय सुरक्षा को स्पष्ट देखें।", profileDescription: "चार मिनट की प्रोफ़ाइल आपके आंकड़ों को सही क्रम देती है: आपात निधि, बीमा की कमी, फिर निवेश योग्य बचत।",
@@ -42,7 +42,7 @@ const translations: Record<Language, Record<string, string>> = {
     financialProfile: "परिवार वित्तीय प्रोफ़ाइल", editProfile: "वित्तीय विवरण बदलें", profileReady: "प्रोफ़ाइल पूरी", profilePending: "प्रोफ़ाइल बाकी", security: "सुरक्षा", currentPassword: "वर्तमान पासवर्ड", newPassword: "नया पासवर्ड", confirmPassword: "नया पासवर्ड दोबारा", changePassword: "पासवर्ड बदलें",
   },
   te: {
-    profile: "ప్రొఫైల్", dashboard: "డ్యాష్‌బోర్డ్", insurance: "బీమా", admin: "అడ్మిన్", familyEngine: "కుటుంబ రక్షణ ఇంజిన్",
+    profile: "ప్రొఫైల్", dashboard: "డ్యాష్‌బోర్డ్", insurance: "బీమా", investmentsPage: "పెట్టుబడులు", admin: "అడ్మిన్", familyEngine: "కుటుంబ రక్షణ ఇంజిన్",
     signOut: "సైన్ అవుట్", settings: "ప్రొఫైల్ & సెట్టింగ్స్", language: "భాష", indiaInr: "భారతదేశం / INR",
     footer: "SurakshaCFO విద్యాపరమైన అంచనాలను మాత్రమే ఇస్తుంది. కొనుగోలు ముందు పాలసీ నిబంధనలను ధృవీకరించండి.",
     profileEyebrow: "ప్రైవేట్ ఆర్థిక పటం", profileTitle: "మీ కుటుంబ ఆర్థిక భద్రతను స్పష్టంగా చూడండి.", profileDescription: "నాలుగు నిమిషాల ప్రొఫైల్ మీ సంఖ్యలను సరైన క్రమంలో ఉంచుతుంది: అత్యవసర నిధి, బీమా లోటు, ఆపై పెట్టుబడి మిగులు.",
@@ -57,7 +57,7 @@ const translations: Record<Language, Record<string, string>> = {
     financialProfile: "కుటుంబ ఆర్థిక ప్రొఫైల్", editProfile: "ఆర్థిక వివరాలు మార్చండి", profileReady: "ప్రొఫైల్ పూర్తి", profilePending: "ప్రొఫైల్ పెండింగ్", security: "భద్రత", currentPassword: "ప్రస్తుత పాస్‌వర్డ్", newPassword: "కొత్త పాస్‌వర్డ్", confirmPassword: "కొత్త పాస్‌వర్డ్ నిర్ధారించండి", changePassword: "పాస్‌వర్డ్ మార్చండి",
   },
   ta: {
-    profile: "சுயவிவரம்", dashboard: "டாஷ்போர்டு", insurance: "காப்பீடு", admin: "நிர்வாகம்", familyEngine: "குடும்ப பாதுகாப்பு இயந்திரம்",
+    profile: "சுயவிவரம்", dashboard: "டாஷ்போர்டு", insurance: "காப்பீடு", investmentsPage: "முதலீடுகள்", admin: "நிர்வாகம்", familyEngine: "குடும்ப பாதுகாப்பு இயந்திரம்",
     signOut: "வெளியேறு", settings: "சுயவிவரம் & அமைப்புகள்", language: "மொழி", indiaInr: "இந்தியா / INR",
     footer: "SurakshaCFO கல்வி மதிப்பீடுகளை மட்டுமே வழங்குகிறது. வாங்குவதற்கு முன் பாலிசி விதிகளை சரிபார்க்கவும்.",
     profileEyebrow: "தனிப்பட்ட நிதி வரைபடம்", profileTitle: "உங்கள் குடும்ப நிதி பாதுகாப்பை தெளிவாகப் பாருங்கள்.", profileDescription: "நான்கு நிமிட சுயவிவரம் உங்கள் எண்களை சரியான வரிசையில் வைக்கிறது: அவசர நிதி, காப்பீட்டு இடைவெளி, பின்னர் முதலீட்டு மீதம்.",
