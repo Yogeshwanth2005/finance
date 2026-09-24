@@ -30,3 +30,6 @@ STRESS_FALL_PCT = {"large": 37, "mid": 36, "small": 38, "debt": 0, "gold": 0}  #
 
 AMFI_NAV_URL = "https://www.amfiindia.com/spages/NAVAll.txt"
 FUND_ACTIVE_NAV_MAX_AGE_DAYS = 7  # a scheme is live when its NAV is within this many days of the newest NAV in the file
+FUND_TOP_N = 10  # funds per segment on the dashboard's top lists
+FUND_GLITCH_MOVE_PCT = 35  # a move this big between two consecutive NAVs is a data glitch, not a price move
+FUND_WINDOW_START_TOLERANCE_DAYS = 7  # a fund launched this soon after a window's start still gets that window

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
-from lib.finance_config import FUND_ACTIVE_NAV_MAX_AGE_DAYS
+from lib.finance_config import FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_GLITCH_MOVE_PCT, FUND_WINDOW_START_TOLERANCE_DAYS
+from models.funds import FundRow
 
 SEGMENTS = ("nifty", "large", "mid", "small")
 
@@ -102,3 +104,101 @@ def parse_navall(text: str) -> list[CatalogEntry]:
     if newest is None:
         return []
     return [entry for entry in entries if (newest - entry.nav_date).days <= FUND_ACTIVE_NAV_MAX_AGE_DAYS]
+
+
+# --- returns (spec section 5.2) -------------------------------------------------------------------------------------
+
+DAYS_PER_YEAR = 365.25
+History = list[tuple[date, float]]  # (NAV date, NAV)
+
+
+@dataclass(frozen=True)
+class ReturnSummary:
+    returns: dict[str, float | None]
+    max_is_annualised: bool
+    start_date: date
+    nav: float
+    nav_date: date
+
+
+def clean_history(history: History) -> History | None:
+    """Ascending by date, one NAV per date, non-positive NAVs dropped.
+
+    None when fewer than two NAVs remain, or when two consecutive NAVs differ by more than FUND_GLITCH_MOVE_PCT:
+    a diversified fund does not move that much between two prints, so the series is untrustworthy.
+    """
+    points = sorted({nav_date: nav for nav_date, nav in history if nav > 0}.items())
+    if len(points) < 2:
+        return None
+    for (_, previous), (_, current) in zip(points, points[1:]):
+        if abs(current / previous - 1) * 100 > FUND_GLITCH_MOVE_PCT:
+            return None
+    return points
+
+
+def _annualised_pct(start_nav: float, end_nav: float, elapsed_years: float) -> float:
+    return ((end_nav / start_nav) ** (1 / elapsed_years) - 1) * 100
+
+
+def _window_return(points: History, years: int) -> float | None:
+    """Annualised return over the last `years`, from the last NAV on or before the window's start. None if the fund is younger."""
+    end_date, end_nav = points[-1]
+    start = end_date - timedelta(days=round(years * DAYS_PER_YEAR))
+    dates = [nav_date for nav_date, _ in points]
+    index = bisect_right(dates, start) - 1
+    if index < 0:
+        if (dates[0] - start).days > FUND_WINDOW_START_TOLERANCE_DAYS:
+            return None
+        index = 0
+    elapsed_years = (end_date - dates[index]).days / DAYS_PER_YEAR
+    if elapsed_years <= 0:
+        return None
+    return _annualised_pct(points[index][1], end_nav, elapsed_years)
+
+
+def summarise_history(history: History) -> ReturnSummary | None:
+    points = clean_history(history)
+    if points is None:
+        return None
+    start_date, start_nav = points[0]
+    end_date, end_nav = points[-1]
+    elapsed_years = (end_date - start_date).days / DAYS_PER_YEAR
+    if elapsed_years <= 0:
+        return None
+    annualised = elapsed_years >= 1
+    max_return = _annualised_pct(start_nav, end_nav, elapsed_years) if annualised else (end_nav / start_nav - 1) * 100
+    raw = {"1y": _window_return(points, 1), "3y": _window_return(points, 3), "5y": _window_return(points, 5), "max": max_return}
+    return ReturnSummary(
+        returns={window: None if value is None else round(value, 2) for window, value in raw.items()},
+        max_is_annualised=annualised,
+        start_date=start_date,
+        nav=end_nav,
+        nav_date=end_date,
+    )
+
+
+def build_row(entry: CatalogEntry, history: History) -> FundRow | None:
+    summary = summarise_history(history)
+    if summary is None:
+        return None
+    return FundRow(
+        scheme_code=entry.scheme_code,
+        name=entry.name,
+        fund_house=entry.fund_house,
+        segment=entry.segment,
+        nav=summary.nav,
+        nav_date=summary.nav_date,
+        start_date=summary.start_date,
+        returns=summary.returns,
+        max_is_annualised=summary.max_is_annualised,
+    )
+
+
+def rank_rows(rows: list[FundRow], window: str) -> list[FundRow]:
+    """Best return first, ties by name. Funds without that window are left out. For "max", annualised funds rank above absolute ones."""
+    ranked = [row for row in rows if row.returns.get(window) is not None]
+    if window == "max":
+        ranked.sort(key=lambda row: (not row.max_is_annualised, -row.returns["max"], row.name))
+    else:
+        ranked.sort(key=lambda row: (-row.returns[window], row.name))
+    return ranked
