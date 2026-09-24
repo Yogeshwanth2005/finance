@@ -58,28 +58,41 @@ Reasoning and rejected alternatives in decisions/log.md, 2026-09-23. The layout 
 
 ---
 
-## Proposed / Not Yet Scoped
-- **Live SIP fund list on `/investments` (mfapi.in)** — designed and agreed with the user 2026-09-23,
-  **not built; their final go-ahead was still pending**. Why the shortlist is curated and what broke
-  "show every fund": decisions/log.md, 2026-09-23. Shape: `lib/mfapi.py` (httpx, per-call timeout, one bad
-  fund never fails the batch), `GET /investments/sip-funds` behind `get_current_user`, a 24h in-process
-  cache warmed from `lifespan`, `Investments.tsx` modelled on `Insurance.tsx` (filter tabs All / Large Cap /
-  Flexi Cap / Mid Cap; cards with fund house, NAV, 1-year return; a "refreshing investment data" state
-  for Render cold starts), a nav item, an i18n key, and a link from the dashboard investment card.
-  Direct Plan + Growth scheme codes, taken from live mfapi search and the full scheme list on 2026-09-23
-  (re-check each still resolves before hard-coding):
-  - Large Cap: UTI Nifty 50 Index 120716 · ICICI Prudential Large Cap 120586 · Nippon India Large Cap
-    118632 · Mirae Asset Large Cap 118825 · SBI Large Cap 119598 · Axis Large Cap 120465 · Kotak Large Cap 120152
-  - Flexi Cap: Parag Parikh 122639 · HDFC 118955 · UTI 120662 · Kotak 120166
-  - Mid Cap: Motilal Oswal Nifty Midcap 150 Index 147622 · Kotak Mid Cap 119775 · HDFC Mid Cap 118989 ·
-    Axis Midcap 120505
+## Fund explorer and inflation-goal check (COMPLETED — 2026-09-24)
+Plan: `docs/superpowers/plans/2026-09-24-fund-explorer-and-goal-check.md` (local only, `docs/` is git-ignored).
+It supersedes the 2026-09-23 curated 15-fund idea: AMFI's file gives category and fund house for every scheme,
+so the explorer lists real Direct Growth funds instead of a hand-picked shortlist. Reasoning, real counts and
+assumptions in decisions/log.md, 2026-09-24.
 
-  Open: whether "combinations" (10–20 weightings across the three categories, filtered by the monthly
-  amount) ships with it or later (the user deferred it); whether sorting by 1-year return counts as ranking.
+| Task | Area | Status |
+|---|---|---|
+| 1–3 | `compute_equity_split` and `compute_goal_check` in `lib/allocation.py`; `analysis.equity_split` and `analysis.goal_check` on `/profile` | **Done**: `analysis.allocation` unchanged; constants editable in `lib/finance_config.py` |
+| 4 | Investment card shows Large / Mid / Small cap, Debt, Gold plus a goal line and a crash line (`GoalCheckLines`, `lib/goalText.ts`) | **Done**: 6 Vitest tests, browser-verified for age 35 and 50, horizons 10 and 3 |
+| 5–8 | `lib/funds.py` (AMFI catalog, returns, in-process cache) behind `GET /api/funds/top` and `/api/funds/search` | **Done**: 172 new unit tests (275 in all); warmed against live AMFI and mfapi.in |
+| 9 | `FundExplorer` on the dashboard: 1Y / 3Y / 5Y / Max toggle, fund-house search, warming and stale states | **Done**: browser-verified, including the warming message and the automatic fill-in |
+| 10 | Stress falls re-measured (constants stand); second brain synced | **Done** |
+
+---
+
+## Proposed / Not Yet Scoped
+- **Pre-built "combinations"** (10–20 weightings across the cap segments, filtered by the monthly amount, with a
+  blended return and a risk label) — the user deferred these on 2026-09-23 and they were not part of the fund
+  explorer. Idea only.
 - **SIP management (CAS import, view-only)** — idea only. See decisions/log.md's
   2026-09-17/18 entries for the narrowing history before resuming. No design, schema or code exists.
 
 ## Known Tech Debt
+- **Fund data sources are untested from Render and have no SLA** (2026-09-24). AMFI's `NAVAll.txt` was fetched
+  from the dev machine only; if Render blocks it, options are a bundled catalog snapshot or another host.
+  mfapi.in is a free community mirror that trails AMFI by about 5 days. A cold warm-up took about 135 s here
+  and left out 1 to 6 of ~129 funds per run (some mfapi calls run close to the 60 s timeout), so the explorer
+  shows a "Refreshing fund data…" state for the first couple of minutes after every Render wake. Render's own
+  cold-start time is unmeasured.
+- **The goal line rests on assumptions with no source or owner** (2026-09-24). `INFLATION_PCT`,
+  `RETURN_MARGIN_PCT`, `EXPECTED_RETURN_PCT` and the cap-split shares in `lib/finance_config.py` are
+  rules of thumb; `STRESS_FALL_PCT` is one crash (Jan to Apr 2020 median), with debt and gold assumed flat.
+  They drive the "expects ≈ N%" and "about N% equity would reach it" text, so decide who owns them or find
+  a source before treating the wording as more than illustrative.
 - **Atlas loose ends.** Local dev still runs on the local `mongod` (`backend/.env`); prod uses Atlas
   (see Deployment). (1) The dev machine's egress IP rotates across several addresses, so a single-IP
   Network Access entry fails the TLS handshake (`TLSV1_ALERT_INTERNAL_ERROR`) intermittently; use a
