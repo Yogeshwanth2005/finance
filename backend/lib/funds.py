@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 import httpx
 
 from lib.finance_config import (
-    AMFI_NAV_URL, FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_CACHE_TTL_HOURS, FUND_FETCH_CONCURRENCY, FUND_GLITCH_MOVE_PCT,
+    AMFI_FETCH_TIMEOUT_SECONDS, AMFI_HISTORY_URL, AMFI_NAV_URL, FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_CACHE_TTL_HOURS, FUND_FETCH_CONCURRENCY, FUND_GLITCH_MOVE_PCT,
     FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N, FUND_WINDOW_START_TOLERANCE_DAYS, MFAPI_SCHEME_URL,
 )
 from models.funds import FundRow
@@ -48,6 +48,11 @@ def _parse_amfi_date(text: str) -> date | None:
         return date(int(parts[2]), _MONTHS[parts[1]], int(parts[0]))
     except ValueError:
         return None
+
+
+def _format_amfi_day(day: date) -> str:
+    """The 05-Mar-2026 form AMFI's dated report asks for, again without the locale."""
+    return f"{day.day:02d}-{tuple(_MONTHS)[day.month - 1]}-{day.year}"
 
 
 def _is_growth(option: str) -> bool:
@@ -127,11 +132,42 @@ def parse_navall(text: str) -> list[CatalogEntry]:
     return [entry for entry in entries if (newest - entry.nav_date).days <= FUND_ACTIVE_NAV_MAX_AGE_DAYS]
 
 
-# --- returns (spec section 5.2) -------------------------------------------------------------------------------------
+# --- dated NAV reports ----------------------------------------------------------------------------------------------
 
 DAYS_PER_YEAR = 365.25
-History = list[tuple[date, float]]  # (NAV date, NAV)
+History = list[tuple[date, float]]  # (NAV date, NAV), ascending by date
 
+
+def parse_nav_report(text: str) -> dict[str, History]:
+    """AMFI's dated NAV report: a header line, then category lines, fund-house lines and rows of code;name;plan;option;isin;isin;nav;date.
+
+    Keeps only the rows (a positive NAV on a parseable date), ascending by date per scheme. A response without the header line is
+    not the report (AMFI answers bad parameters with an HTML page) and raises ValueError.
+    """
+    lines = text.splitlines()
+    first = next((line.strip().lstrip("\N{ZERO WIDTH NO-BREAK SPACE}") for line in lines if line.strip()), "")
+    if not first.startswith("Scheme Code;"):
+        raise ValueError("not an AMFI NAV report")
+    report: dict[str, History] = {}
+    for raw in lines:
+        parts = raw.strip().split(";")
+        if len(parts) != 8 or not parts[0].isdigit():
+            continue
+        nav_date = _parse_amfi_date(parts[7])
+        if nav_date is None:
+            continue
+        try:
+            nav = float(parts[6])
+        except ValueError:  # "N.A."
+            continue
+        if nav > 0:
+            report.setdefault(parts[0], []).append((nav_date, nav))
+    for points in report.values():
+        points.sort()
+    return report
+
+
+# --- returns (spec section 5.2) -------------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ReturnSummary:
@@ -352,6 +388,21 @@ async def fetch_amfi_catalog(client: httpx.AsyncClient) -> list[CatalogEntry]:
     response = await client.get(AMFI_NAV_URL, headers=_HEADERS, timeout=60)
     response.raise_for_status()
     return parse_navall(response.text)
+
+
+async def _get_report(client: httpx.AsyncClient, start: date, end: date) -> dict[str, History]:
+    params = {"frmdt": _format_amfi_day(start), "todt": _format_amfi_day(end)}
+    response = await client.get(AMFI_HISTORY_URL, params=params, headers=_HEADERS, timeout=AMFI_FETCH_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return parse_nav_report(response.text)
+
+
+async def fetch_nav_range(client: httpx.AsyncClient, start: date, end: date) -> dict[str, History]:
+    """Every scheme's NAVs from AMFI's dated report for start..end. One retry: a range is 1 to 7 MB and a download can drop."""
+    try:
+        return await _get_report(client, start, end)
+    except (httpx.HTTPError, ValueError):
+        return await _get_report(client, start, end)
 
 
 async def _get_history(client: httpx.AsyncClient, scheme_code: str) -> History:

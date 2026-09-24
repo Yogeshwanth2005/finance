@@ -54,3 +54,25 @@ Gamma Mutual Fund
 
 # every scheme of NAVALL_SAMPLE that is Direct + Growth, has a numeric NAV and is live against the file's newest date
 NAVALL_LIVE_CODES = {"100001", "100005", "100010", "200002", "300001", "400001", "400002", "400003", "400004", "400005", "400006", "500001"}
+
+# AMFI's dated NAV report as it really comes: another column order than NAVAll.txt, category lines with spaces inside the
+# parentheses, empty plan and option columns on some rows. The last three rows are ones the parser must drop.
+NAV_REPORT_SAMPLE = """Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date
+
+Open Ended Schemes ( Money Market )
+
+
+Taurus Mutual Fund
+139619;Taurus Investor Education Pool - Unclaimed Dividend - Growth;;;;;10.0000;15-Sep-2026
+139617;Taurus Unclaimed Redemption - Growth;;Growth;;;17.7597;15-Sep-2026
+
+Open Ended Schemes ( Equity Scheme - Multi Cap Fund )
+
+
+Aditya Birla Sun Life Mutual Fund
+148921;Aditya Birla Sun Life Multi-Cap Fund-Direct Growth;Direct Plan;GROWTH;INF209KB1Y49;;22.43;15-Sep-2026
+148921;Aditya Birla Sun Life Multi-Cap Fund-Direct Growth;Direct Plan;GROWTH;INF209KB1Y49;;22.51;16-Sep-2026
+148920;Aditya Birla Sun Life Multi-Cap Fund-Direct IDCW Payout;Direct Plan;IDCW Payout;INF209KB1Y56;;N.A.;15-Sep-2026
+148919;Aditya Birla Sun Life Multi-Cap Fund-Regular-IDCW Payout;Regular Plan;IDCW Payout;INF209KB1Y31;;0.0000;15-Sep-2026
+153309;BAJAJ FINSERV MULTI CAP FUND - DIRECT - GROWTH;Direct Plan;Growth;INF0QA701AV7;;12.267;not a date
+"""
