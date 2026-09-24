@@ -3,6 +3,7 @@ import { ArrowUpRight, Banknote, ChevronRight, CircleAlert, PiggyBank, ShieldChe
 import { Link, Navigate } from "react-router-dom";
 
 import AppShell from "@/components/AppShell";
+import FundExplorer from "@/components/FundExplorer";
 import GoalCheckLines from "@/components/GoalCheckLines";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,8 @@ export default function Dashboard() {
             </Card>
           </div>
         </section>
+
+        <FundExplorer investmentBlocked={emergencyGapOpen || insuranceExceedsSurplus || analysis.investable_surplus <= 0} />
 
         <section className="mt-10" data-testid="dashboard-profile-kpi-section">
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0d7a5f]">Financial profile</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="dashboard-profile-kpi-title">{t("profileKpis")}</h2></div><p className="max-w-md text-xs leading-5 text-[#8a8f99]" data-testid="dashboard-profile-kpi-neutral-note">{t("kpiNeutralNote")}</p></div>

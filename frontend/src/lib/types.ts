@@ -116,6 +116,43 @@ export interface GoalCheck {
   crash_loss_at_min_equity_pct: number | null;
 }
 
+export type FundSegment = "nifty" | "large" | "mid" | "small";
+export type FundWindow = "1y" | "3y" | "5y" | "max";
+// warming: the server is still fetching NAV histories; stale: showing older data after a failed refresh; unavailable: nothing loaded
+export type FundsStatus = "warming" | "ready" | "stale" | "unavailable";
+
+export interface FundRow {
+  scheme_code: string;
+  name: string;
+  fund_house: string;
+  segment: FundSegment;
+  nav: number;
+  nav_date: string;
+  start_date: string;
+  returns: Record<FundWindow, number | null>;
+  max_is_annualised: boolean;
+}
+
+export type FundSegmentLists = Record<FundSegment, FundRow[]>;
+
+export interface FundsTopResponse {
+  status: FundsStatus;
+  as_of: string | null;
+  window: FundWindow;
+  failed_count: number;
+  segments: FundSegmentLists;
+}
+
+export interface FundsSearchResponse {
+  status: FundsStatus;
+  as_of: string | null;
+  window: FundWindow;
+  failed_count: number;
+  query: string;
+  fund_houses: string[];
+  groups: FundSegmentLists;
+}
+
 export interface ProfileKpis {
   emergency_coverage_pct: number;
   runway_months: number;
