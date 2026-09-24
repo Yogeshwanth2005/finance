@@ -11,14 +11,17 @@ import asyncio
 import contextlib
 import logging
 import re
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Iterator
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Protocol
 
 import httpx
 
-from lib.finance_config import FUND_CACHE_TTL_HOURS, FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N
+from lib.finance_config import (
+    FUND_CACHE_TTL_HOURS, FUND_CHECKPOINT_MAX_DAY_TRIES, FUND_CHECKPOINT_MIN_ROWS, FUND_FIRST_NAV_MAX_FAILURES, FUND_FIRST_NAV_START,
+    FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N,
+)
 from lib.fund_repo import StoredFund
 from lib.funds import (
     SEGMENTS, WINDOW_YEARS, CatalogEntry, History, compute_max_return, compute_window_returns, fetch_amfi_catalog, fetch_nav_range,
@@ -74,6 +77,21 @@ def _running(task: asyncio.Task | None) -> bool:
     return task is not None and not task.done()
 
 
+def _months(start: date, end: date) -> Iterator[date]:
+    """The first day of every month from `start`'s month to `end`'s month, inclusive."""
+    month = start.replace(day=1)
+    while month <= end:
+        yield month
+        month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+
+def _with_first_nav(fund: StoredFund, nav: float, on: date, source: str) -> StoredFund:
+    max_return, annualised = compute_max_return((on, nav), (fund.nav_date, fund.nav))
+    return replace(
+        fund, first_nav=nav, first_nav_date=on, first_nav_source=source, returns={**fund.returns, "max": max_return}, max_is_annualised=annualised
+    )
+
+
 class FundStore:
     def __init__(
         self,
@@ -98,6 +116,9 @@ class FundStore:
         self._refresh_task: asyncio.Task | None = None
         self._last_refresh_attempt: datetime | None = None
         self._last_refresh_failed = False
+        self._first_nav_lock = asyncio.Lock()
+        self._first_nav_task: asyncio.Task | None = None
+        self._last_first_nav_attempt: datetime | None = None
 
     # --- state ------------------------------------------------------------------------------------------------------
 
@@ -152,11 +173,13 @@ class FundStore:
         self.ensure_fresh()
 
     def ensure_fresh(self) -> None:
-        """Called on every fund request and once after boot: start a background refresh if one is due. Never blocks."""
+        """Called on every fund request and once after boot: start the background jobs that are due. Never blocks."""
         if self._booting:  # deciding from an empty store while the stored rows are still loading would refresh needlessly
             return
-        if self._refresh_due(self._now()):
-            self._refresh_task = asyncio.get_running_loop().create_task(self.refresh())
+        now = self._now()
+        if self._refresh_due(now):
+            self._refresh_task = asyncio.get_running_loop().create_task(self._refresh_then_resolve())
+        self._start_first_nav_if_due(now)
 
     def _refresh_due(self, now: datetime) -> bool:
         if self._refresh_lock.locked() or _running(self._refresh_task):
@@ -165,8 +188,19 @@ class FundStore:
             return False
         return not self._rows or self._expired(now)
 
+    async def _refresh_then_resolve(self) -> None:
+        await self.refresh()
+        self._start_first_nav_if_due(self._now())
+
+    def _start_first_nav_if_due(self, now: datetime) -> None:
+        if _running(self._first_nav_task) or self._first_nav_lock.locked() or not self._unresolved():
+            return
+        if self._last_first_nav_attempt is not None and now - self._last_first_nav_attempt < timedelta(minutes=FUND_REFRESH_RETRY_MINUTES):
+            return
+        self._first_nav_task = asyncio.get_running_loop().create_task(self.resolve_first_navs())
+
     async def aclose(self) -> None:
-        for task in (self._boot_task, self._refresh_task):
+        for task in (self._boot_task, self._refresh_task, self._first_nav_task):
             if _running(task):
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -230,6 +264,83 @@ class FundStore:
                 computed_at=now, first_nav=first_nav, first_nav_date=first_date, first_nav_source=source,
             )
         return rows
+
+    # --- first NAVs -------------------------------------------------------------------------------------------------
+
+    def _unresolved(self) -> list[StoredFund]:
+        return [fund for fund in self._rows.values() if fund.first_nav is None]
+
+    def _resume_month(self) -> date:
+        """The month of the latest snapshot already saved (only snapshots count), else the month Direct plans began."""
+        saved = [fund.first_nav_date for fund in self._rows.values() if fund.first_nav_source == "checkpoint" and fund.first_nav_date]
+        return (max(saved) if saved else date.fromisoformat(f"{FUND_FIRST_NAV_START}-01")).replace(day=1)
+
+    async def resolve_first_navs(self) -> None:
+        """Find each unresolved fund's first NAV on month-start snapshots, oldest to newest, saving after every snapshot.
+
+        Single-flight and resumable. A fund is resolved on the first snapshot it appears on, so its first NAV is at most about a
+        month after its launch. Three snapshots in a row that fail to download stop the pass; the next trigger retries it.
+        """
+        if self._first_nav_lock.locked():
+            return
+        async with self._first_nav_lock:
+            self._last_first_nav_attempt = self._now()
+            if self._as_of is None or not self._unresolved():
+                return
+            newest = self._as_of
+            failures = 0
+            for month in _months(self._resume_month(), newest):
+                if not self._unresolved():
+                    break
+                try:
+                    snapshot = await self._snapshot(month, newest)
+                except Exception:
+                    failures += 1
+                    logger.warning("first-NAV snapshot for %s failed (%d in a row)", month.isoformat()[:7], failures, exc_info=True)
+                    if failures >= FUND_FIRST_NAV_MAX_FAILURES:
+                        return
+                    continue
+                failures = 0
+                if snapshot is not None:
+                    await self._resolve_from(snapshot)
+            await self._resolve_unseen()
+
+    async def _snapshot(self, month: date, newest: date) -> dict[str, History] | None:
+        """The report of the first weekday of the month (looking at most FUND_CHECKPOINT_MAX_DAY_TRIES days in) that holds a full day of NAVs.
+
+        A Saturday, a Sunday and a holiday hold only the few hundred schemes that publish on those days, so they would find
+        the equity funds a month late. Days after `newest` do not exist yet.
+        """
+        for offset in range(FUND_CHECKPOINT_MAX_DAY_TRIES):
+            day = month + timedelta(days=offset)
+            if day > newest:
+                return None
+            if day.weekday() >= 5:
+                continue
+            report = await self._fetch_range(day, day)
+            logger.info("first-NAV snapshot %s: %d schemes", day.isoformat(), len(report))
+            if len(report) >= FUND_CHECKPOINT_MIN_ROWS:
+                return report
+        return None
+
+    async def _resolve_from(self, report: dict[str, History]) -> None:
+        resolved = []
+        for fund in self._unresolved():
+            points = report.get(fund.scheme_code)
+            if points:
+                resolved.append(_with_first_nav(fund, points[0][1], points[0][0], "checkpoint"))
+        await self._save_first_navs(resolved)
+
+    async def _resolve_unseen(self) -> None:
+        """A fund launched after the last snapshot: its own newest NAV is the earliest one we will ever see for it."""
+        await self._save_first_navs([_with_first_nav(fund, fund.nav, fund.nav_date, "first_seen") for fund in self._unresolved()])
+
+    async def _save_first_navs(self, resolved: list[StoredFund]) -> None:
+        if not resolved:
+            return
+        for fund in resolved:  # no await since `resolved` was built from the current rows, so every one is still there
+            self._rows[fund.scheme_code] = fund
+        await self._repo.set_first_nav(resolved)
 
     # --- queries ----------------------------------------------------------------------------------------------------
 
