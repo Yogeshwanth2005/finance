@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from lib.allocation import compute_allocation
+from lib.allocation import compute_allocation, compute_equity_split, compute_goal_check
 from lib.auth import get_current_user
 from lib.db import db
+from lib.finance_config import EXPECTED_RETURN_PCT, INFLATION_PCT, RETURN_MARGIN_PCT, STRESS_FALL_PCT
 from models.profile import (
     AllocationSnapshot,
+    EquitySplit,
     FamilyProfile,
     FinancialAnalysis,
+    GoalCheck,
     ProfileInput,
     ProfileKpis,
     ProfileResponse,
@@ -59,6 +62,8 @@ def _analysis(input_data: ProfileInput) -> FinancialAnalysis:
     score_label = "Strong foundation" if protection_score >= 75 else "Needs attention" if protection_score >= 45 else "Protection gap"
 
     allocation = compute_allocation(input_data.age, input_data.risk_tolerance, input_data.investment_horizon_years)
+    equity_split = compute_equity_split(input_data.risk_tolerance, allocation["equity_pct"])
+    goal_check = compute_goal_check(input_data.risk_tolerance, input_data.investment_horizon_years, allocation, equity_split)
 
     return FinancialAnalysis(
         annual_household_income=round(annual_income, 2),
@@ -86,6 +91,8 @@ def _analysis(input_data: ProfileInput) -> FinancialAnalysis:
             liabilities_to_income_multiple=round(liabilities_to_income_multiple, 2),
         ),
         allocation=AllocationSnapshot(**{bucket: round(pct, 1) for bucket, pct in allocation.items()}),
+        equity_split=EquitySplit(**equity_split),
+        goal_check=GoalCheck(**goal_check),
         protection_score=protection_score,
         score_label=score_label,
         formula_notes=[
@@ -95,6 +102,10 @@ def _analysis(input_data: ProfileInput) -> FinancialAnalysis:
             "Savings rate = (household income − annual expenses − annual EMI) ÷ household income.",
             "Debt-to-income = monthly EMI ÷ monthly household income; any 40–50% reference is illustrative, not advice.",
             "Allocation = (100 − age) × risk multiplier (0.8 / 1.0 / 1.2), less 20 points when the horizon is 3 years or under, clamped to 0–100; gold is a flat 10% capped by what equity leaves, debt is the rest.",
+            "Equity is split into large / mid / small cap by risk tolerance (more mid and small cap the higher the tolerance): a rule of thumb with no source.",
+            f"Goal = inflation (assumed {INFLATION_PCT}%) + {RETURN_MARGIN_PCT['conservative']} / {RETURN_MARGIN_PCT['moderate']} / {RETURN_MARGIN_PCT['aggressive']}% by risk tolerance; expected return uses assumed long-run returns "
+            f"(large {EXPECTED_RETURN_PCT['large']}, mid {EXPECTED_RETURN_PCT['mid']}, small {EXPECTED_RETURN_PCT['small']}, debt {EXPECTED_RETURN_PCT['debt']}, gold {EXPECTED_RETURN_PCT['gold']}% a year), not past performance.",
+            f"Crash line = the mix's share of a March-2020-style fall (large {STRESS_FALL_PCT['large']}%, mid {STRESS_FALL_PCT['mid']}%, small {STRESS_FALL_PCT['small']}%, debt and gold assumed flat): one crash in the data, not a worst case.",
         ],
         disclaimer="Educational estimates only. They are not financial, tax, medical, or insurance advice. Verify policy terms, exclusions, underwriting, claim experience, and premiums with a licensed advisor before buying.",
     )

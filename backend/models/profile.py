@@ -63,6 +63,26 @@ class AllocationSnapshot(BaseModel):
     gold_pct: float
 
 
+class EquitySplit(BaseModel):
+    # Portfolio percentages: the three add up to allocation.equity_pct
+    large_pct: float
+    mid_pct: float
+    small_pct: float
+
+
+class GoalCheck(BaseModel):
+    inflation_pct: float
+    margin_pct: float
+    target_pct: float
+    expected_return_pct: float
+    beats_target: bool
+    reachable: bool | None  # None when not evaluated: the target is already met, or the horizon is short
+    suggestion_suppressed: bool
+    min_equity_pct: float | None
+    crash_loss_pct: float
+    crash_loss_at_min_equity_pct: float | None
+
+
 class FinancialAnalysis(BaseModel):
     annual_household_income: float
     annual_expenses: float
@@ -80,6 +100,8 @@ class FinancialAnalysis(BaseModel):
     emergency_months: float
     kpis: ProfileKpis
     allocation: AllocationSnapshot
+    equity_split: EquitySplit
+    goal_check: GoalCheck
     protection_score: int
     score_label: str
     formula_notes: list[str]
