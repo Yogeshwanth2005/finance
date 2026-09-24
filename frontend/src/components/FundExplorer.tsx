@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiGet } from "@/lib/api";
-import type { FundRow, FundSegment, FundsSearchResponse, FundsStatus, FundsTopResponse, FundWindow } from "@/lib/types";
+import { fundCount, fundRefetchDelay, maxNote } from "@/lib/fundText";
+import type { FundRow, FundSegment, FundsSearchResponse, FundsTopResponse, FundWindow } from "@/lib/types";
 
 const PERIODS: { value: FundWindow; label: string; hint: string }[] = [
   { value: "1y", label: "1Y", hint: "Annualised return over the last year" },
   { value: "3y", label: "3Y", hint: "Annualised return over the last 3 years" },
   { value: "5y", label: "5Y", hint: "Annualised return over the last 5 years" },
-  { value: "max", label: "Max", hint: "Annualised since the Direct plan's first NAV (Direct plans only exist from January 2013)" },
+  { value: "max", label: "Max", hint: "Annualised since the fund's first NAV, found on a month-start snapshot (approximate; Direct plans only exist from January 2013)" },
 ];
 
 const SEGMENTS: { key: FundSegment; title: string }[] = [
@@ -22,8 +23,7 @@ const SEGMENTS: { key: FundSegment; title: string }[] = [
   { key: "small", title: "Small cap" },
 ];
 
-// warming: the server is still fetching NAV histories, so ask again soon; unavailable: the server retries on the next request
-const refetchDelay = (status?: FundsStatus) => (status === "warming" ? 5_000 : status === "unavailable" ? 30_000 : false);
+type Card = { id: string; title: string; rows: FundRow[] };
 
 const formatReturn = (value: number | null) => (value === null ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`);
 // Dates arrive as ISO days; read them as UTC so a viewer west of Greenwich does not see the previous month.
@@ -31,15 +31,15 @@ const formatMonth = (isoDate: string) => new Date(isoDate).toLocaleDateString("e
 const formatDay = (isoDate: string) => new Date(isoDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const houseName = (fundHouse: string) => fundHouse.replace(/ mutual fund$/i, "");
 
-function FundList({ segment, title, rows, period }: { segment: FundSegment; title: string; rows: FundRow[]; period: FundWindow }) {
+function FundList({ id, title, rows, period }: Card & { period: FundWindow }) {
   return (
-    <Card className="border-[#e4e1d8] bg-white shadow-none" data-testid={`fund-list-${segment}`}>
+    <Card className="border-[#e4e1d8] bg-white shadow-none" data-testid={`fund-list-${id}`}>
       <CardHeader className="p-5 pb-2">
         <CardTitle className="text-base font-semibold text-[#17181c]">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-5 pt-2">
         {rows.length === 0 ? (
-          <p className="text-xs leading-5 text-[#8a8f99]" data-testid={`fund-list-${segment}-empty`}>No funds with enough history for this window.</p>
+          <p className="text-xs leading-5 text-[#8a8f99]" data-testid={`fund-list-${id}-empty`}>No funds with enough history for this window.</p>
         ) : (
           <ol className="space-y-3">
             {rows.map((fund, index) => {
@@ -50,8 +50,9 @@ function FundList({ segment, title, rows, period }: { segment: FundSegment; titl
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-[#17181c]" title={fund.name}>{fund.name}</p>
                     <p className="truncate text-[11px] text-[#8a8f99]">
-                      {houseName(fund.fund_house)} · since {formatMonth(fund.start_date)}
-                      {period === "max" && !fund.max_is_annualised ? " · new fund, not annualised" : ""}
+                      {houseName(fund.fund_house)}
+                      {fund.start_date ? ` · since ${formatMonth(fund.start_date)}` : ""}
+                      {period === "max" && fund.max_is_annualised === false ? " · new fund, not annualised" : ""}
                     </p>
                   </div>
                   <span className={`font-mono text-sm font-bold tabular-nums ${value !== null && value < 0 ? "text-[#b91c1c]" : "text-[#0d7a5f]"}`}>{formatReturn(value)}</span>
@@ -78,7 +79,7 @@ export default function FundExplorer({ investmentBlocked }: { investmentBlocked:
     enabled: !searching,
     retry: false,
     placeholderData: keepPreviousData,
-    refetchInterval: (query) => refetchDelay(query.state.data?.status),
+    refetchInterval: (query) => fundRefetchDelay(query.state.data?.status, query.state.data?.max_pending),
   });
   const search = useQuery({
     queryKey: ["funds", "search", submitted, period],
@@ -86,12 +87,18 @@ export default function FundExplorer({ investmentBlocked }: { investmentBlocked:
     enabled: searching,
     retry: false,
     placeholderData: keepPreviousData,
-    refetchInterval: (query) => refetchDelay(query.state.data?.status),
+    refetchInterval: (query) => fundRefetchDelay(query.state.data?.status, query.state.data?.max_pending),
   });
 
   const active = searching ? search : top;
   const data = active.data;
-  const lists = searching ? search.data?.groups : top.data?.segments;
+  const topData = top.data;
+  const cards: Card[] = searching
+    ? (search.data?.sections ?? []).map((section) => ({ id: section.key, title: section.title, rows: section.funds }))
+    : topData
+      ? SEGMENTS.map(({ key, title }) => ({ id: key, title, rows: topData.segments[key] }))
+      : [];
+  const matchedFunds = (search.data?.sections ?? []).reduce((count, section) => count + section.funds.length, 0);
   const showLists = data !== undefined && (data.status === "ready" || data.status === "stale");
   const noHouseMatched = searching && search.data !== undefined && showLists && search.data.fund_houses.length === 0;
 
@@ -157,16 +164,17 @@ export default function FundExplorer({ investmentBlocked }: { investmentBlocked:
         </Button>
       </form>
 
-      {period === "max" && (
-        <p className="mt-3 text-[11px] leading-5 text-[#8a8f99]" data-testid="fund-max-note">
-          Max is annualised from each fund's first Direct-plan NAV, so funds of different ages are not like-for-like.
-        </p>
+      {period === "max" && data && (
+        <p className="mt-3 text-[11px] leading-5 text-[#8a8f99]" data-testid="fund-max-note">{maxNote(data.max_pending)}</p>
       )}
 
       {searching && search.data && (
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2" data-testid="fund-search-heading">
           <p className="text-sm text-[#5c5f66]">
-            Results for “{search.data.query}”{search.data.fund_houses.length > 0 && <span className="text-[#8a8f99]"> · {search.data.fund_houses.map(houseName).join(", ")}</span>}
+            Results for “{search.data.query}”
+            {search.data.fund_houses.length > 0 && (
+              <span className="text-[#8a8f99]"> · {search.data.fund_houses.map(houseName).join(", ")} · {fundCount(matchedFunds)}</span>
+            )}
           </p>
           <Button type="button" variant="outline" size="sm" onClick={clearSearch} data-testid="fund-search-clear">Back to top 10</Button>
         </div>
@@ -178,22 +186,21 @@ export default function FundExplorer({ investmentBlocked }: { investmentBlocked:
         <p className="mt-5 text-sm leading-6 text-[#5c5f66]" data-testid="fund-search-empty">No fund house matches “{search.data.query}”.</p>
       )}
 
-      {showLists && lists && !noHouseMatched && (
+      {showLists && !noHouseMatched && (
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {SEGMENTS.filter(({ key }) => !searching || key !== "nifty" || lists.nifty.length > 0).map(({ key, title }) => (
-            <FundList key={key} segment={key} title={title} rows={lists[key]} period={period} />
+          {cards.map((card) => (
+            <FundList key={card.id} {...card} period={period} />
           ))}
         </div>
       )}
 
       {data?.as_of && (
         <p className="mt-4 text-[11px] leading-5 text-[#8a8f99]" data-testid="fund-as-of">
-          {data.status === "stale" ? "Showing older data; a refresh is retrying. " : ""}NAV data as of {formatDay(data.as_of)}
-          {data.failed_count > 0 ? ` · ${data.failed_count} fund${data.failed_count === 1 ? "" : "s"} left out (data could not be loaded)` : ""}.
+          {data.status === "stale" ? "Showing older data; a refresh is retrying. " : ""}NAV data as of {formatDay(data.as_of)}.
         </p>
       )}
       <p className="mt-1 text-[11px] leading-5 text-[#8a8f99]" data-testid="fund-explorer-disclaimer">
-        Direct Growth plans · data from AMFI and mfapi.in · past performance is not indicative of future returns.
+        Direct Growth plans · data from AMFI · past performance is not indicative of future returns.
       </p>
     </section>
   );

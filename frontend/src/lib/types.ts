@@ -118,28 +118,36 @@ export interface GoalCheck {
 
 export type FundSegment = "nifty" | "large" | "mid" | "small";
 export type FundWindow = "1y" | "3y" | "5y" | "max";
-// warming: the server is still fetching NAV histories; stale: showing older data after a failed refresh; unavailable: nothing loaded
+// warming: the server has no rows yet and is filling them from AMFI; stale: older data after a failed refresh; unavailable: nothing loaded
 export type FundsStatus = "warming" | "ready" | "stale" | "unavailable";
 
 export interface FundRow {
   scheme_code: string;
   name: string;
   fund_house: string;
-  segment: FundSegment;
+  category: string;
+  segment: FundSegment | null;
   nav: number;
   nav_date: string;
-  start_date: string;
+  start_date: string | null;
   returns: Record<FundWindow, number | null>;
-  max_is_annualised: boolean;
+  max_is_annualised: boolean | null;
 }
 
 export type FundSegmentLists = Record<FundSegment, FundRow[]>;
+
+// One block of a search result: a segment ("large") or an AMFI category ("cat-flexi-cap-fund").
+export interface FundSection {
+  key: string;
+  title: string;
+  funds: FundRow[];
+}
 
 export interface FundsTopResponse {
   status: FundsStatus;
   as_of: string | null;
   window: FundWindow;
-  failed_count: number;
+  max_pending: boolean;
   segments: FundSegmentLists;
 }
 
@@ -147,10 +155,10 @@ export interface FundsSearchResponse {
   status: FundsStatus;
   as_of: string | null;
   window: FundWindow;
-  failed_count: number;
+  max_pending: boolean;
   query: string;
   fund_houses: string[];
-  groups: FundSegmentLists;
+  sections: FundSection[];
 }
 
 export interface ProfileKpis {
