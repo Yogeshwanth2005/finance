@@ -47,7 +47,35 @@ Restored from git history (`dddc580^`); reasoning and rejected alternatives in d
 
 ---
 
+## Dashboard restructure: status → invest → insurance (COMPLETED — 2026-09-23)
+Reasoning and rejected alternatives in decisions/log.md, 2026-09-23. The layout landed in the same commit as the glide-path work above.
+
+| Task | Area | Status |
+|---|---|---|
+| 1 | Page order: headline metrics → score ring + cashflow → "What to do next" → 8-KPI grid → formula card | **Done**: typecheck clean |
+| 2 | Investment card gated emergency gap → insurance affordability → monthly split (`investable_surplus ÷ 12`) | **Done**: the split is the glide-path `analysis.allocation` (Equity/Debt/Gold buckets), not named funds |
+| 3 | Insurance status card: held vs recommended vs gap for term and health, premium budget, link to `/insurance` with the published-plan count | **Done**: adds a `GET /plans` query to the dashboard |
+
+---
+
 ## Proposed / Not Yet Scoped
+- **Live SIP fund list on `/investments` (mfapi.in)** — designed and agreed with the user 2026-09-23,
+  **not built; their final go-ahead was still pending**. Why the shortlist is curated and what broke
+  "show every fund": decisions/log.md, 2026-09-23. Shape: `lib/mfapi.py` (httpx, per-call timeout, one bad
+  fund never fails the batch), `GET /investments/sip-funds` behind `get_current_user`, a 24h in-process
+  cache warmed from `lifespan`, `Investments.tsx` modelled on `Insurance.tsx` (filter tabs All / Large Cap /
+  Flexi Cap / Mid Cap; cards with fund house, NAV, 1-year return; a "refreshing investment data" state
+  for Render cold starts), a nav item, an i18n key, and a link from the dashboard investment card.
+  Direct Plan + Growth scheme codes, taken from live mfapi search and the full scheme list on 2026-09-23
+  (re-check each still resolves before hard-coding):
+  - Large Cap: UTI Nifty 50 Index 120716 · ICICI Prudential Large Cap 120586 · Nippon India Large Cap
+    118632 · Mirae Asset Large Cap 118825 · SBI Large Cap 119598 · Axis Large Cap 120465 · Kotak Large Cap 120152
+  - Flexi Cap: Parag Parikh 122639 · HDFC 118955 · UTI 120662 · Kotak 120166
+  - Mid Cap: Motilal Oswal Nifty Midcap 150 Index 147622 · Kotak Mid Cap 119775 · HDFC Mid Cap 118989 ·
+    Axis Midcap 120505
+
+  Open: whether "combinations" (10–20 weightings across the three categories, filtered by the monthly
+  amount) ships with it or later (the user deferred it); whether sorting by 1-year return counts as ranking.
 - **SIP management (CAS import, view-only)** — idea only. See decisions/log.md's
   2026-09-17/18 entries for the narrowing history before resuming. No design, schema or code exists.
 
@@ -111,3 +139,8 @@ Restored from git history (`dddc580^`); reasoning and rejected alternatives in d
 - **hi/te/ta labels** for risk tolerance and investment horizon (`i18n.ts`) have had no native review.
 - **Allocation defaults are silent**: stored profiles without the two new fields read as moderate /
   10 years until the user re-saves the profile.
+- **`investable_surplus` ignores the emergency-fund gap** (2026-09-23). `_analysis()` subtracts only the
+  estimated insurance premium; `emergency_gap` is tracked separately and never reserved. Only
+  `Dashboard.tsx` withholds the SIP figure while the gap is open, so the API value, and anything else that
+  reads it, still looks like investable money for someone with no safety net. Either gate every consumer
+  or reserve the gap in the formula (the second changes existing numbers and tests).
