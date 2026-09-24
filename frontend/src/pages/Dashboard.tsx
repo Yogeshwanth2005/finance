@@ -3,6 +3,7 @@ import { ArrowUpRight, Banknote, ChevronRight, CircleAlert, PiggyBank, ShieldChe
 import { Link, Navigate } from "react-router-dom";
 
 import AppShell from "@/components/AppShell";
+import GoalCheckLines from "@/components/GoalCheckLines";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,9 +46,11 @@ export default function Dashboard() {
   const insuranceExceedsSurplus = analysis.annual_insurance_budget > analysis.annual_surplus_before_protection;
   const monthlyInvestable = analysis.investable_surplus / 12;
   const allocationBuckets = [
-    { name: "Equity", pct: analysis.allocation.equity_pct, color: "bg-[#0d7a5f]" },
-    { name: "Debt", pct: analysis.allocation.debt_pct, color: "bg-[#2563eb]" },
-    { name: "Gold", pct: analysis.allocation.gold_pct, color: "bg-[#d97706]" },
+    { name: "Large cap", slug: "large-cap", pct: analysis.equity_split.large_pct, color: "bg-[#0d7a5f]" },
+    { name: "Mid cap", slug: "mid-cap", pct: analysis.equity_split.mid_pct, color: "bg-[#10b981]" },
+    { name: "Small cap", slug: "small-cap", pct: analysis.equity_split.small_pct, color: "bg-[#6ee7b7]" },
+    { name: "Debt", slug: "debt", pct: analysis.allocation.debt_pct, color: "bg-[#2563eb]" },
+    { name: "Gold", slug: "gold", pct: analysis.allocation.gold_pct, color: "bg-[#d97706]" },
   ];
   const categories = [
     { label: "Living costs", value: analysis.annual_expenses, color: "bg-[#c8c4b7]" },
@@ -112,11 +115,12 @@ export default function Dashboard() {
                   <div data-testid="investment-sip-plan">
                     <p className="text-sm leading-6 text-[#5c5f66]">After your protection budget, here's how a glide-path split of your monthly surplus could look:</p>
                     <p className="mt-4 font-mono text-2xl font-bold text-[#17181c]" data-testid="investment-monthly-amount">{formatINR(monthlyInvestable, true)}<span className="ml-1 text-xs font-sans font-normal text-[#8a8f99]">/ month</span></p>
-                    <div className="mt-5 space-y-3 text-xs">{allocationBuckets.map((bucket) => <div key={bucket.name} className="flex items-center gap-3" data-testid={`investment-allocation-${bucket.name.toLowerCase()}`}><span className={`size-2 rounded-full ${bucket.color}`} /><span className="flex-1 font-semibold text-[#17181c]">{bucket.name}</span><span className="font-mono text-[#8a8f99]" data-testid={`investment-allocation-${bucket.name.toLowerCase()}-pct`}>{bucket.pct}%</span><span className="w-20 text-right font-mono font-bold text-[#5c5f66]">{formatINR(monthlyInvestable * bucket.pct / 100, true)}</span></div>)}</div>
+                    <div className="mt-5 space-y-3 text-xs">{allocationBuckets.map((bucket) => <div key={bucket.name} className="flex items-center gap-3" data-testid={`investment-allocation-${bucket.slug}`}><span className={`size-2 rounded-full ${bucket.color}`} /><span className="flex-1 font-semibold text-[#17181c]">{bucket.name}</span><span className="font-mono text-[#8a8f99]" data-testid={`investment-allocation-${bucket.slug}-pct`}>{bucket.pct}%</span><span className="w-20 text-right font-mono font-bold text-[#5c5f66]">{formatINR(monthlyInvestable * bucket.pct / 100, true)}</span></div>)}</div>
                     <p className="mt-4 text-[11px] leading-5 text-[#8a8f99]" data-testid="investment-allocation-basis">Age {profile.age} · {profile.risk_tolerance} risk · {profile.investment_horizon_years}-year horizon</p>
+                    <GoalCheckLines goal={analysis.goal_check} />
                   </div>
                 )}
-                <p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="investment-disclaimer">Illustrative only — a rule-of-thumb glide path (equity ≈ 100 − age, scaled by risk tolerance, trimmed for horizons of 3 years or less), not personalised advice.</p>
+                <p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="investment-disclaimer">Illustrative only — a rule-of-thumb glide path (equity ≈ 100 − age, scaled by risk tolerance, trimmed for horizons of 3 years or less), split across large, mid and small cap by risk tolerance and checked against assumed long-run returns. Not personalised advice; past performance is not indicative of future returns.</p>
               </CardContent>
             </Card>
             <Card className="border-[#e4e1d8] bg-white shadow-none" data-testid="dashboard-insurance-status-card">

@@ -79,6 +79,8 @@ export interface FinancialAnalysis {
   emergency_months: number;
   kpis: ProfileKpis;
   allocation: AllocationSnapshot;
+  equity_split: EquitySplit;
+  goal_check: GoalCheck;
   protection_score: number;
   score_label: string;
   formula_notes: string[];
@@ -90,6 +92,28 @@ export interface AllocationSnapshot {
   equity_pct: number;
   debt_pct: number;
   gold_pct: number;
+}
+
+// Portfolio percentages of the large / mid / small cap slices; the three add up to allocation.equity_pct.
+export interface EquitySplit {
+  large_pct: number;
+  mid_pct: number;
+  small_pct: number;
+}
+
+// The mix's expected return against inflation plus a risk-scaled margin, and the March-2020-style crash line.
+// `reachable` is null when it was not evaluated: the target is already met, or the horizon is short.
+export interface GoalCheck {
+  inflation_pct: number;
+  margin_pct: number;
+  target_pct: number;
+  expected_return_pct: number;
+  beats_target: boolean;
+  reachable: boolean | null;
+  suggestion_suppressed: boolean;
+  min_equity_pct: number | null;
+  crash_loss_pct: number;
+  crash_loss_at_min_equity_pct: number | null;
 }
 
 export interface ProfileKpis {
