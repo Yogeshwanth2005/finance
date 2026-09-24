@@ -17,3 +17,13 @@ GOLD_ALLOCATION_PCT = 10
 
 FUND_EXAMPLES_PER_CATEGORY = 3
 INSURANCE_EXAMPLES_PER_GAP_TYPE = 2
+
+# Fund explorer + inflation-goal check (docs/superpowers/specs/2026-09-24-fund-explorer-and-goal-check-design.md).
+# Nothing below is a sourced figure: each value is an assumption or a one-off measurement (spec section 9), kept here so it can be edited.
+GROWTH_SHARE_BASE_PCT = 40  # mid + small share of the equity slice at a 1.0 risk multiplier
+MID_SHARE_OF_GROWTH = 0.625  # mid gets 5/8 of that growth slice, small the other 3/8
+
+INFLATION_PCT = 6
+RETURN_MARGIN_PCT = {"conservative": 3, "moderate": 4, "aggressive": 5}  # extra over inflation that counts as success
+EXPECTED_RETURN_PCT = {"large": 11, "mid": 13, "small": 14, "debt": 7, "gold": 8}  # assumed long-run returns, not measured ones
+STRESS_FALL_PCT = {"large": 37, "mid": 36, "small": 38, "debt": 0, "gold": 0}  # Jan-Apr 2020 median fall; debt and gold assumed flat

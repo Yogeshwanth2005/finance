@@ -1,7 +1,7 @@
 from lib.finance_config import (
     BASE_EQUITY_AGE_CONSTANT, RISK_TOLERANCE_MULTIPLIERS,
     SHORT_HORIZON_THRESHOLD, SHORT_HORIZON_SHIFT, GOLD_ALLOCATION_PCT,
-    FUND_EXAMPLES_PER_CATEGORY,
+    FUND_EXAMPLES_PER_CATEGORY, GROWTH_SHARE_BASE_PCT, MID_SHARE_OF_GROWTH,
 )
 
 # Section 5.2's example: equity_pct -> "large-cap index fund or diversified
@@ -41,3 +41,20 @@ def select_fund_examples(bucket: str, funds: list[dict], count: int | None = Non
     matching = [f for f in funds if f["category"] in categories]
     matching.sort(key=lambda f: f["aum_cr"], reverse=True)
     return matching[:count]
+
+
+def _equity_shares(risk_tolerance: str) -> tuple[float, float, float]:
+    """Large / mid / small share of the equity slice, in percent. A higher risk tolerance moves weight from large into mid and small."""
+    growth_share = min(100.0, GROWTH_SHARE_BASE_PCT * RISK_TOLERANCE_MULTIPLIERS[risk_tolerance])
+    mid_share = growth_share * MID_SHARE_OF_GROWTH
+    return 100.0 - growth_share, mid_share, growth_share - mid_share
+
+
+# No source for these shares (see the spec, section 6.1): a rule of thumb keyed off the risk multiplier already in finance_config.
+def compute_equity_split(risk_tolerance: str, equity_pct: float) -> dict:
+    large_share, mid_share, _ = _equity_shares(risk_tolerance)
+    large_pct = round(equity_pct * large_share / 100, 1)
+    mid_pct = round(equity_pct * mid_share / 100, 1)
+    # small takes the remainder so the three always add back up to the equity slice
+    small_pct = round(equity_pct - large_pct - mid_pct, 1)
+    return {"large_pct": large_pct, "mid_pct": mid_pct, "small_pct": small_pct}
