@@ -10,16 +10,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Protocol
 
 import httpx
 
-from lib.finance_config import FUND_CACHE_TTL_HOURS, FUND_REFRESH_RETRY_MINUTES
+from lib.finance_config import FUND_CACHE_TTL_HOURS, FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N
 from lib.fund_repo import StoredFund
 from lib.funds import (
-    WINDOW_YEARS, CatalogEntry, History, compute_max_return, compute_window_returns, fetch_amfi_catalog, fetch_nav_range, fetch_plan,
+    SEGMENTS, WINDOW_YEARS, CatalogEntry, History, compute_max_return, compute_window_returns, fetch_amfi_catalog, fetch_nav_range,
+    fetch_plan,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,6 +30,7 @@ logger = logging.getLogger(__name__)
 CatalogFetcher = Callable[[], Awaitable[list[CatalogEntry]]]
 RangeFetcher = Callable[[date, date], Awaitable[dict[str, History]]]
 
+SEGMENT_TITLES = {"nifty": "Nifty 50 index", "large": "Large cap", "mid": "Mid cap", "small": "Small cap"}
 
 
 class FundRepo(Protocol):
@@ -34,6 +38,36 @@ class FundRepo(Protocol):
     async def upsert_many(self, funds: list[StoredFund]) -> None: ...
     async def set_first_nav(self, funds: list[StoredFund]) -> None: ...
     async def delete_missing(self, keep_codes: set[str]) -> None: ...
+
+
+@dataclass(frozen=True)
+class FundSection:
+    """One block of a search result: a segment ("large") or an AMFI category ("cat-flexi-cap-fund")."""
+
+    key: str
+    title: str
+    funds: list[StoredFund]
+
+
+def _rank_key(window: str):
+    if window == "max":  # a fund a year or older is ranked above a newer one, whose absolute return is not comparable
+        return lambda fund: (not fund.max_is_annualised, -fund.returns["max"], fund.name)
+    return lambda fund: (-fund.returns[window], fund.name)
+
+
+def rank_funds(funds: list[StoredFund], window: str) -> list[StoredFund]:
+    """The funds that have a value for the window, best first, ties by name."""
+    return sorted((fund for fund in funds if fund.returns.get(window) is not None), key=_rank_key(window))
+
+
+def _ranked_then_rest(funds: list[StoredFund], window: str) -> list[StoredFund]:
+    """A search result never hides a fund: ranked ones first, then the ones without a value for the window by name."""
+    rest = sorted((fund for fund in funds if fund.returns.get(window) is None), key=lambda fund: fund.name)
+    return rank_funds(funds, window) + rest
+
+
+def _category_key(category: str) -> str:
+    return "cat-" + (re.sub(r"[^a-z0-9]+", "-", category.lower()).strip("-") or "other")
 
 
 def _running(task: asyncio.Task | None) -> bool:
@@ -197,6 +231,33 @@ class FundStore:
             )
         return rows
 
+    # --- queries ----------------------------------------------------------------------------------------------------
+
+    def top(self, window: str) -> dict[str, list[StoredFund]]:
+        """The best FUND_TOP_N funds of each equity segment for the window; a fund without a value for it is left out."""
+        return {segment: rank_funds([fund for fund in self._rows.values() if fund.segment == segment], window)[:FUND_TOP_N] for segment in SEGMENTS}
+
+    def search(self, query: str, window: str) -> tuple[list[str], list[FundSection]]:
+        """Every fund of every fund house whose name contains `query` (a case-insensitive plain substring), as ordered sections.
+
+        Funds of the four equity segments come first, in the order of SEGMENTS, each under its segment's title; every other
+        fund goes under its AMFI category, A to Z. Inside a section the funds with a value for the window come first.
+        """
+        needle = query.strip().lower()
+        houses = {fund.fund_house for fund in self._rows.values() if needle and needle in fund.fund_house.lower()}
+        matched = [fund for fund in self._rows.values() if fund.fund_house in houses]
+        sections = []
+        for segment in SEGMENTS:
+            funds = [fund for fund in matched if fund.segment == segment]
+            if funds:
+                sections.append(FundSection(segment, SEGMENT_TITLES[segment], _ranked_then_rest(funds, window)))
+        by_category: dict[str, list[StoredFund]] = {}
+        for fund in matched:
+            if fund.segment is None:
+                by_category.setdefault(fund.category or "Other funds", []).append(fund)
+        for category in sorted(by_category, key=str.casefold):
+            sections.append(FundSection(_category_key(category), category, _ranked_then_rest(by_category[category], window)))
+        return sorted(houses), sections
 
 
 def build_default_store(repo: FundRepo) -> FundStore:
