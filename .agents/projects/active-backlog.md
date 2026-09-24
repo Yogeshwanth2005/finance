@@ -68,7 +68,7 @@ assumptions in decisions/log.md, 2026-09-24.
 |---|---|---|
 | 1–3 | `compute_equity_split` and `compute_goal_check` in `lib/allocation.py`; `analysis.equity_split` and `analysis.goal_check` on `/profile` | **Done**: `analysis.allocation` unchanged; constants editable in `lib/finance_config.py` |
 | 4 | Investment card shows Large / Mid / Small cap, Debt, Gold plus a goal line and a crash line (`GoalCheckLines`, `lib/goalText.ts`) | **Done**: 6 Vitest tests, browser-verified for age 35 and 50, horizons 10 and 3 |
-| 5–8 | `lib/funds.py` (AMFI catalog, returns, in-process cache) behind `GET /api/funds/top` and `/api/funds/search` | **Done**: 172 new unit tests (275 in all); warmed against live AMFI and mfapi.in |
+| 5–8 | `lib/funds.py` (AMFI catalog, returns, in-process cache) behind `GET /api/funds/top` and `/api/funds/search` | **Done**: 173 new unit tests (276 in all); warmed against live AMFI and mfapi.in |
 | 9 | `FundExplorer` on the dashboard: 1Y / 3Y / 5Y / Max toggle, fund-house search, warming and stale states | **Done**: browser-verified, including the warming message and the automatic fill-in |
 | 10 | Stress falls re-measured (constants stand); second brain synced | **Done** |
 
