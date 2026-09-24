@@ -15,11 +15,13 @@ import httpx
 
 from lib.finance_config import (
     AMFI_FETCH_TIMEOUT_SECONDS, AMFI_HISTORY_URL, AMFI_NAV_URL, FUND_ACTIVE_NAV_MAX_AGE_DAYS, FUND_CACHE_TTL_HOURS, FUND_FETCH_CONCURRENCY, FUND_GLITCH_MOVE_PCT,
-    FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N, FUND_WINDOW_START_TOLERANCE_DAYS, MFAPI_SCHEME_URL,
+    FUND_END_RANGE_DAYS, FUND_REFRESH_RETRY_MINUTES, FUND_TOP_N, FUND_WINDOW_LOOKBACK_DAYS, FUND_WINDOW_START_TOLERANCE_DAYS, MFAPI_SCHEME_URL,
 )
 from models.funds import FundRow
 
 SEGMENTS = ("nifty", "large", "mid", "small")
+WINDOWS = ("1y", "3y", "5y", "max")
+WINDOW_YEARS = {"1y": 1, "3y": 3, "5y": 5}  # the windows that come from the dated files; "max" needs the fund's first NAV
 
 _MONTHS = {name: number for number, name in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), start=1)}
 _CATEGORY_LINE = re.compile(r"Schemes?\s*\(.*\)\s*$")
@@ -167,6 +169,81 @@ def parse_nav_report(text: str) -> dict[str, History]:
     return report
 
 
+# --- returns from the dated reports (spec section 5.1) ---------------------------------------------------------------
+
+
+def window_targets(newest: date) -> dict[str, date]:
+    """T_N for each window: the one date, the same for every fund, that a 1, 3 or 5 year return starts from."""
+    return {window: newest - timedelta(days=round(years * DAYS_PER_YEAR)) for window, years in WINDOW_YEARS.items()}
+
+
+def fetch_plan(newest: date) -> dict[str, tuple[date, date]]:
+    """The four date ranges a refresh downloads: "end" (the newest NAVs) and, per window, a range around the window's start."""
+    plan = {"end": (newest - timedelta(days=FUND_END_RANGE_DAYS), newest)}
+    for window, target in window_targets(newest).items():
+        plan[window] = (target - timedelta(days=FUND_WINDOW_LOOKBACK_DAYS), target + timedelta(days=FUND_WINDOW_START_TOLERANCE_DAYS))
+    return plan
+
+
+def _has_glitch(points: History) -> bool:
+    """True when two consecutive NAVs differ by more than FUND_GLITCH_MOVE_PCT (a diversified fund does not move that much between prints)."""
+    navs = [nav for _, nav in sorted(dict(points).items())]
+    return any(before <= 0 or abs(after / before - 1) * 100 > FUND_GLITCH_MOVE_PCT for before, after in zip(navs, navs[1:]))
+
+
+def _base_point(points: History, target: date) -> tuple[date, float] | None:
+    """The last NAV on or before `target`; failing that, the first one within FUND_WINDOW_START_TOLERANCE_DAYS after it."""
+    before = [point for point in points if point[0] <= target]
+    if before:
+        return max(before)
+    limit = target + timedelta(days=FUND_WINDOW_START_TOLERANCE_DAYS)
+    after = [point for point in points if target < point[0] <= limit]
+    return min(after) if after else None
+
+
+def _annualised_pct(start_nav: float, end_nav: float, elapsed_years: float) -> float:
+    return ((end_nav / start_nav) ** (1 / elapsed_years) - 1) * 100
+
+
+def compute_window_returns(
+    latest: tuple[date, float], end_points: History, window_points: dict[str, History], newest: date
+) -> dict[str, float | None]:
+    """A fund's annualised 1y / 3y / 5y returns from the dated reports; None for a window it cannot support.
+
+    `latest` is the fund's newest NAV from the catalog and `newest` the newest NAV date across the catalog. A glitch in the
+    end range voids every window, one in a window's own range voids that window. The exponent uses the actual days between
+    the base NAV and `latest`, so a fund whose newest NAV is a few days old is still annualised correctly.
+    """
+    latest_date, latest_nav = latest
+    returns: dict[str, float | None] = {window: None for window in WINDOW_YEARS}
+    if latest_nav <= 0 or _has_glitch([*end_points, latest]):
+        return returns
+    for window, target in window_targets(newest).items():
+        points = window_points.get(window, [])
+        base = None if _has_glitch(points) else _base_point(points, target)
+        if base is None:
+            continue
+        elapsed_years = (latest_date - base[0]).days / DAYS_PER_YEAR
+        if elapsed_years > 0:
+            returns[window] = round(_annualised_pct(base[1], latest_nav, elapsed_years), 2)
+    return returns
+
+
+def compute_max_return(first: tuple[date, float] | None, latest: tuple[date, float]) -> tuple[float | None, bool | None]:
+    """The return since the fund's first NAV, and whether it is annualised: annualised from a year on, absolute before that.
+
+    (None, None) while the first NAV is unknown or no time has passed since it.
+    """
+    if first is None or first[1] <= 0:
+        return None, None
+    elapsed_years = (latest[0] - first[0]).days / DAYS_PER_YEAR
+    if elapsed_years <= 0:
+        return None, None
+    if elapsed_years >= 1:
+        return round(_annualised_pct(first[1], latest[1], elapsed_years), 2), True
+    return round((latest[1] / first[1] - 1) * 100, 2), False
+
+
 # --- returns (spec section 5.2) -------------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -191,10 +268,6 @@ def clean_history(history: History) -> History | None:
         if abs(current / previous - 1) * 100 > FUND_GLITCH_MOVE_PCT:
             return None
     return points
-
-
-def _annualised_pct(start_nav: float, end_nav: float, elapsed_years: float) -> float:
-    return ((end_nav / start_nav) ** (1 / elapsed_years) - 1) * 100
 
 
 def _window_return(points: History, years: int) -> float | None:
