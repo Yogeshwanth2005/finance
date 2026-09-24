@@ -1,10 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, Banknote, ChevronRight, CircleAlert, PiggyBank, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowUpRight, Banknote, ChevronRight, CircleAlert, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 
 import AppShell from "@/components/AppShell";
-import FundExplorer from "@/components/FundExplorer";
-import GoalCheckLines from "@/components/GoalCheckLines";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,16 +41,6 @@ export default function Dashboard() {
   const annualCashflow = analysis.annual_surplus_before_protection;
   const uncoveredLiabilities = Math.max(0, analysis.total_liabilities - (profile.existing_term_cover_crore * 10_000_000));
   const publishedPlanCount = plansQuery.data?.length ?? 0;
-  const emergencyGapOpen = analysis.emergency_gap > 0;
-  const insuranceExceedsSurplus = analysis.annual_insurance_budget > analysis.annual_surplus_before_protection;
-  const monthlyInvestable = analysis.investable_surplus / 12;
-  const allocationBuckets = [
-    { name: "Large cap", slug: "large-cap", pct: analysis.equity_split.large_pct, color: "bg-[#0d7a5f]" },
-    { name: "Mid cap", slug: "mid-cap", pct: analysis.equity_split.mid_pct, color: "bg-[#10b981]" },
-    { name: "Small cap", slug: "small-cap", pct: analysis.equity_split.small_pct, color: "bg-[#6ee7b7]" },
-    { name: "Debt", slug: "debt", pct: analysis.allocation.debt_pct, color: "bg-[#2563eb]" },
-    { name: "Gold", slug: "gold", pct: analysis.allocation.gold_pct, color: "bg-[#d97706]" },
-  ];
   const categories = [
     { label: "Living costs", value: analysis.annual_expenses, color: "bg-[#c8c4b7]" },
     { label: "EMIs & debt", value: analysis.annual_emi, color: "bg-[#d97706]" },
@@ -72,11 +60,10 @@ export default function Dashboard() {
           <Link to="/insurance" className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#17181c] px-4 py-2.5 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5" data-testid="dashboard-review-insurance-link">{t("reviewInsurance")} <ArrowUpRight className="size-4" /></Link>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
           <Metric label={t("protectionScore")} value={`${analysis.protection_score}/100`} note={analysis.score_label} icon={ShieldCheck} testId="dashboard-protection-score-card" />
           <Metric label={t("termGap")} value={`₹${analysis.term_gap_crore.toFixed(2)} Cr`} note={`Recommended ${analysis.recommended_term_cover_crore.toFixed(2)} Cr`} icon={WalletCards} testId="dashboard-term-gap-metric" />
           <Metric label={t("healthGap")} value={`₹${analysis.health_gap_lakh.toFixed(1)} L`} note={`Floater target ${analysis.recommended_health_cover_lakh} L`} icon={CircleAlert} testId="dashboard-health-gap-metric" />
-          <Metric label={t("investableNext")} value={formatINR(analysis.investable_surplus, true)} note="After illustrative cover budget" icon={PiggyBank} testId="dashboard-investable-surplus-card" />
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
@@ -97,31 +84,11 @@ export default function Dashboard() {
         <section className="mt-6" data-testid="dashboard-next-steps-section">
           <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8a8f99]">What to do next</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="dashboard-next-steps-title">Protect, then invest — in that order.</h2></div>
           <div className="mt-5 grid gap-6 lg:grid-cols-2">
-            <Card className="border-[#e4e1d8] bg-[#fff9ef] shadow-none" data-testid="dashboard-investment-card">
-              <CardHeader className="p-6 pb-2"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#a16207]" data-testid="investment-eyebrow">Surplus direction</p><CardTitle className="mt-2 text-xl font-semibold text-[#17181c]" data-testid="investment-title">Invest what protection leaves behind.</CardTitle></CardHeader>
+            <Card className="border-[#e4e1d8] bg-[#fff9ef] shadow-none" data-testid="dashboard-investments-link-card">
+              <CardHeader className="p-6 pb-2"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#a16207]" data-testid="investments-link-eyebrow">Surplus direction</p><CardTitle className="mt-2 text-xl font-semibold text-[#17181c]" data-testid="investments-link-title">Invest what protection leaves behind.</CardTitle></div><TrendingUp className="size-5 text-[#a16207]" /></div></CardHeader>
               <CardContent className="p-6 pt-3">
-                {emergencyGapOpen ? (
-                  <div data-testid="investment-emergency-blocker">
-                    <p className="text-sm leading-6 text-[#5c5f66]">Build your emergency fund before investing — it comes before insurance premiums in the priority order.</p>
-                    <p className="mt-4 font-mono text-2xl font-bold text-[#17181c]" data-testid="investment-emergency-gap-amount">{formatINR(analysis.emergency_gap, true)}</p>
-                    <p className="mt-1 text-xs text-[#8a8f99]">more needed to reach a 6-month fund ({analysis.emergency_months} months covered today)</p>
-                  </div>
-                ) : insuranceExceedsSurplus || analysis.investable_surplus <= 0 ? (
-                  <div data-testid="investment-insurance-blocker">
-                    <p className="text-sm leading-6 text-[#5c5f66]">Your recommended insurance premium exceeds what's left after expenses and EMIs — close that gap before investing.</p>
-                    <div className="mt-4 flex items-center justify-between text-xs"><span className="text-[#8a8f99]">Premium needed</span><span className="font-mono font-semibold text-[#17181c]" data-testid="investment-premium-needed">{formatINR(analysis.annual_insurance_budget, true)}/yr</span></div>
-                    <div className="mt-2 flex items-center justify-between text-xs"><span className="text-[#8a8f99]">Surplus available</span><span className="font-mono font-semibold text-[#17181c]" data-testid="investment-surplus-available">{formatINR(analysis.annual_surplus_before_protection, true)}/yr</span></div>
-                  </div>
-                ) : (
-                  <div data-testid="investment-sip-plan">
-                    <p className="text-sm leading-6 text-[#5c5f66]">After your protection budget, here's how a glide-path split of your monthly surplus could look:</p>
-                    <p className="mt-4 font-mono text-2xl font-bold text-[#17181c]" data-testid="investment-monthly-amount">{formatINR(monthlyInvestable, true)}<span className="ml-1 text-xs font-sans font-normal text-[#8a8f99]">/ month</span></p>
-                    <div className="mt-5 space-y-3 text-xs">{allocationBuckets.map((bucket) => <div key={bucket.name} className="flex items-center gap-3" data-testid={`investment-allocation-${bucket.slug}`}><span className={`size-2 rounded-full ${bucket.color}`} /><span className="flex-1 font-semibold text-[#17181c]">{bucket.name}</span><span className="font-mono text-[#8a8f99]" data-testid={`investment-allocation-${bucket.slug}-pct`}>{bucket.pct}%</span><span className="w-20 text-right font-mono font-bold text-[#5c5f66]">{formatINR(monthlyInvestable * bucket.pct / 100, true)}</span></div>)}</div>
-                    <p className="mt-4 text-[11px] leading-5 text-[#8a8f99]" data-testid="investment-allocation-basis">Age {profile.age} · {profile.risk_tolerance} risk · {profile.investment_horizon_years}-year horizon</p>
-                    <GoalCheckLines goal={analysis.goal_check} />
-                  </div>
-                )}
-                <p className="mt-5 border-t border-[#eddcbb] pt-4 text-[11px] leading-5 text-[#8a6b3d]" data-testid="investment-disclaimer">Illustrative only — a rule-of-thumb glide path (equity ≈ 100 − age, scaled by risk tolerance, trimmed for horizons of 3 years or less), split across large, mid and small cap by risk tolerance and checked against assumed long-run returns. Not personalised advice; past performance is not indicative of future returns.</p>
+                <p className="text-sm leading-6 text-[#5c5f66]">See how your monthly surplus could be split across large, mid and small cap, debt and gold, then browse real funds for each slice.</p>
+                <Link to="/investments" className="mt-5 flex items-center justify-between rounded-lg border border-[#eddcbb] bg-white px-4 py-3 text-xs font-semibold text-[#a16207] transition-colors hover:border-[#a16207]" data-testid="dashboard-investments-link">Open investments<ChevronRight className="size-3.5" /></Link>
               </CardContent>
             </Card>
             <Card className="border-[#e4e1d8] bg-white shadow-none" data-testid="dashboard-insurance-status-card">
@@ -135,8 +102,6 @@ export default function Dashboard() {
             </Card>
           </div>
         </section>
-
-        <FundExplorer investmentBlocked={emergencyGapOpen || insuranceExceedsSurplus || analysis.investable_surplus <= 0} />
 
         <section className="mt-10" data-testid="dashboard-profile-kpi-section">
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0d7a5f]">Financial profile</p><h2 className="mt-2 font-heading text-2xl font-semibold text-[#17181c]" data-testid="dashboard-profile-kpi-title">{t("profileKpis")}</h2></div><p className="max-w-md text-xs leading-5 text-[#8a8f99]" data-testid="dashboard-profile-kpi-neutral-note">{t("kpiNeutralNote")}</p></div>

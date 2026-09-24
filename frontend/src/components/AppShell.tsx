@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, HeartHandshake, Languages, LockKeyhole, LogOut, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { BarChart3, HeartHandshake, Languages, LockKeyhole, LogOut, ShieldCheck, Sparkles, TrendingUp, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n";
 const navItems = [
   { to: "/", label: "Profile", icon: Sparkles, testId: "nav-profile-wizard-link" },
   { to: "/dashboard", label: "Dashboard", icon: BarChart3, testId: "nav-dashboard-link" },
+  { to: "/investments", label: "Investments", icon: TrendingUp, testId: "nav-investments-link" },
   { to: "/insurance", label: "Insurance", icon: ShieldCheck, testId: "nav-insurance-plans-link" },
 ];
 

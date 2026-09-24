@@ -53,7 +53,7 @@ Reasoning and rejected alternatives in decisions/log.md, 2026-09-23. The layout 
 | Task | Area | Status |
 |---|---|---|
 | 1 | Page order: headline metrics → score ring + cashflow → "What to do next" → 8-KPI grid → formula card | **Done**: typecheck clean |
-| 2 | Investment card gated emergency gap → insurance affordability → monthly split (`investable_surplus ÷ 12`) | **Done**: the split is the glide-path `analysis.allocation` (Equity/Debt/Gold buckets), not named funds |
+| 2 | Investment card gated emergency gap → insurance affordability → monthly split (`investable_surplus ÷ 12`) | **Done**: the split is the glide-path `analysis.allocation` (Equity/Debt/Gold buckets), not named funds. The card now lives on `/investments` (see "Investments page" below) |
 | 3 | Insurance status card: held vs recommended vs gap for term and health, premium budget, link to `/insurance` with the published-plan count | **Done**: adds a `GET /plans` query to the dashboard |
 
 ---
@@ -67,14 +67,45 @@ assumptions in decisions/log.md, 2026-09-24.
 | Task | Area | Status |
 |---|---|---|
 | 1–3 | `compute_equity_split` and `compute_goal_check` in `lib/allocation.py`; `analysis.equity_split` and `analysis.goal_check` on `/profile` | **Done**: `analysis.allocation` unchanged; constants editable in `lib/finance_config.py` |
-| 4 | Investment card shows Large / Mid / Small cap, Debt, Gold plus a goal line and a crash line (`GoalCheckLines`, `lib/goalText.ts`) | **Done**: 6 Vitest tests, browser-verified for age 35 and 50, horizons 10 and 3 |
-| 5–8 | `lib/funds.py` (AMFI catalog, returns, in-process cache) behind `GET /api/funds/top` and `/api/funds/search` | **Done**: 173 new unit tests (276 in all); warmed against live AMFI and mfapi.in |
-| 9 | `FundExplorer` on the dashboard: 1Y / 3Y / 5Y / Max toggle, fund-house search, warming and stale states | **Done**: browser-verified, including the warming message and the automatic fill-in |
+| 4 | Investment card shows Large / Mid / Small cap, Debt, Gold plus a goal line and a crash line (`GoalCheckLines`, `lib/goalText.ts`) | **Done**: 6 Vitest tests, browser-verified for age 35 and 50, horizons 10 and 3 (on the dashboard then; now on `/investments`) |
+| 5–8 | `lib/funds.py` (AMFI catalog, returns, in-process cache) behind `GET /api/funds/top` and `/api/funds/search` | **Done**: 173 new unit tests (276 in all); warmed against live AMFI and mfapi.in. **Data source and cache superseded the same day** by the all-funds work below (mfapi.in and the in-process cache are gone) |
+| 9 | `FundExplorer` (built on the dashboard, now on `/investments`): 1Y / 3Y / 5Y / Max toggle, fund-house search, warming and stale states | **Done**: browser-verified, including the warming message and the automatic fill-in |
 | 10 | Stress falls re-measured (constants stand); second brain synced | **Done** |
 
 ---
 
+## All funds by fund house, stored in MongoDB (COMPLETED — 2026-09-24)
+Plan: `docs/superpowers/plans/2026-09-24-all-funds-stored-cache.md` (local only). Builds on the explorer above and
+replaces its data source. Reasoning, measurements and assumptions in decisions/log.md, 2026-09-24 (first entry).
+
+| Task | Area | Status |
+|---|---|---|
+| 1 | Catalog keeps every live Direct Growth scheme with AMFI's own category label (`parse_navall`, `CatalogEntry.category`) | **Done** |
+| 2–3 | AMFI's dated NAV reports: `parse_nav_report`, `fetch_nav_range`; `fetch_plan`, `compute_window_returns`, `compute_max_return` | **Done**: 1Y / 3Y / 5Y matched mfapi.in to 0.000 pp on 67 fund-windows |
+| 4 | `lib/fund_repo.py`: `StoredFund`, `MongoFundRepo` on `fund_rows`; a stored first NAV is never overwritten | **Done**: rules also run against a real local MongoDB |
+| 5–7 | `lib/fund_store.py`: boot from stored rows, atomic refresh (once a day), `top`, sectioned `search`, resumable first-NAV pass | **Done**: refresh 21 s, restart load 16 ms, first-NAV pass 2 min 50 s |
+| 8 | API returns `sections` and `max_pending`; `server.py` builds the store on `db.fund_rows`; mfapi code removed | **Done**: 355 unit tests |
+| 9 | Explorer: one card per section, Max pending note, polling 5 s / 30 s / 15 s | **Done**: 13 Vitest tests; browser-driven against live AMFI |
+| 10 | Live verification and second brain | **Done** locally. **Not pushed or deployed**; Render and Atlas untested |
+
+---
+
+## Investments page (COMPLETED — 2026-09-24)
+Reasoning in decisions/log.md, 2026-09-24 (first entry). Frontend only; no backend or API change.
+
+| Task | Area | Status |
+|---|---|---|
+| 1 | `pages/Investments.tsx` at `/investments` (behind `ProtectedRoute`, same profile-complete redirect and sample fallback as the dashboard) with a nav tab in `AppShell` | **Done**: typecheck clean, 13 Vitest tests pass, `vite build` ok |
+| 2 | Surplus direction card extracted to `components/SurplusDirectionCard.tsx` (prop `block`: `"emergency"` / `"insurance"` / `null`, computed once in the page and shared with `FundExplorer`); `data-testid`s unchanged | **Done** |
+| 3 | Dashboard drops the card, `FundExplorer` and the "Investable next" metric (metric row is now 3 wide); a link card to `/investments` takes the card's place | **Done**. **Not looked at in a browser**: it needs the backend, and starting that connects to Atlas and refreshes from AMFI |
+
+---
+
 ## Proposed / Not Yet Scoped
+- **Midnight trigger for the daily refresh** — a GitHub Actions job calls a token-protected endpoint that starts the
+  same refresh, then polls a status endpoint (Render only counts incoming requests as activity, so the polling keeps it
+  awake). The request-triggered path keeps working if the job breaks. Proposed only; the refresh today starts on the
+  first fund request after the rows are a day old.
 - **Pre-built "combinations"** (10–20 weightings across the cap segments, filtered by the monthly amount, with a
   blended return and a risk label) — the user deferred these on 2026-09-23 and they were not part of the fund
   explorer. Idea only.
@@ -82,12 +113,21 @@ assumptions in decisions/log.md, 2026-09-24.
   2026-09-17/18 entries for the narrowing history before resuming. No design, schema or code exists.
 
 ## Known Tech Debt
-- **Fund data sources are untested from Render and have no SLA** (2026-09-24). AMFI's `NAVAll.txt` was fetched
-  from the dev machine only; if Render blocks it, options are a bundled catalog snapshot or another host.
-  mfapi.in is a free community mirror that trails AMFI by about 5 days. A cold warm-up took about 135 s here
-  and left out 1 to 6 of ~129 funds per run (some mfapi calls run close to the 60 s timeout), so the explorer
-  shows a "Refreshing fund data…" state for the first couple of minutes after every Render wake. Render's own
-  cold-start time is unmeasured.
+- **AMFI is the only fund data source, untested from Render, and its dated-report endpoint is undocumented**
+  (2026-09-24). `NAVAll.txt` and `DownloadNAVHistoryReport_Po.aspx` were fetched from the dev machine only; if
+  Render blocks them, options are a bundled catalog snapshot or another host. A layout change makes
+  `parse_nav_report` fail loudly (a missing header line is "not the report") and the last stored rows keep serving as
+  `stale`. Atlas M0 behaviour, Render's wake time and a multi-day refresh across real sleeps are unmeasured.
+  (mfapi.in and the 135 s warm-up are gone.)
+- **Max return is approximate** (2026-09-24). It is annualised from a first NAV seen on a month-start snapshot, so
+  it can start up to about a month after launch (14 funds checked: within 0.7 pp of mfapi). If that is not good
+  enough, the fallback the spec names is replacing Max with a 10Y window. The first-NAV pass reads about 181 reports
+  (about 165 MB) the first time only.
+- **A future-dated NAV in AMFI's file stalls the refresh** (2026-09-24). `parse_navall` takes "newest" from the
+  largest date in the file, so one bad row makes every other scheme look dead; the store now treats a catalog under
+  half the stored size as a bad download (rows kept, status `stale`, retry after 5 min) but does not ignore the bad
+  row. Also: a refresh landing while the first-NAV pass saves can leave `returns.max` null in Mongo until the next
+  refresh; near-duplicate AMFI labels ("FoF Domestic" / "Fund of Funds Scheme (Domestic)") show as separate cards.
 - **The goal line rests on assumptions with no source or owner** (2026-09-24). `INFLATION_PCT`,
   `RETURN_MARGIN_PCT`, `EXPECTED_RETURN_PCT` and the cap-split shares in `lib/finance_config.py` are
   rules of thumb; `STRESS_FALL_PCT` is one crash (Jan to Apr 2020 median), with debt and gold assumed flat.

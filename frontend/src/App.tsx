@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import Insurance from "@/pages/Insurance";
+import Investments from "@/pages/Investments";
 import Login from "@/pages/Login";
 import ResetPassword from "@/pages/ResetPassword";
 import AdminDocuments from "@/pages/AdminDocuments";
@@ -17,6 +18,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/investments" element={<Investments />} />
         <Route path="/insurance" element={<Insurance />} />
         <Route path="/account" element={<Account />} />
         <Route element={<AdminRoute />}>
