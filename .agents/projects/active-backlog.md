@@ -98,6 +98,7 @@ Reasoning in decisions/log.md, 2026-09-24 (first entry). Frontend only; no backe
 | 1 | `pages/Investments.tsx` at `/investments` (behind `ProtectedRoute`, same profile-complete redirect and sample fallback as the dashboard) with a nav tab in `AppShell` | **Done**: typecheck clean, 13 Vitest tests pass, `vite build` ok |
 | 2 | Surplus direction card extracted to `components/SurplusDirectionCard.tsx` (prop `block`: `"emergency"` / `"insurance"` / `null`, computed once in the page and shared with `FundExplorer`); `data-testid`s unchanged | **Done** |
 | 3 | Dashboard drops the card, `FundExplorer` and the "Investable next" metric (metric row is now 3 wide); a link card to `/investments` takes the card's place | **Done**: browser-verified against the local backend for all three card states and in en / hi / te / ta; a nav-label bug found there ("Current investments (₹)") is fixed with the `investmentsPage` key |
+| 4 | Each `FundList` card in `FundExplorer` scrolls inside itself (`max-h-60 overflow-y-auto`, focusable, `data-testid="fund-list-<id>-scroll"`) so the page stops growing with the list; a fund-house search can return dozens of funds in one category card | **Done** 2026-09-25: typecheck clean, 13 Vitest tests pass. Browser-checked in Vite only with mocked `/api` responses (10 funds per card, and a 30-fund search card): cards stay 368px, lists scroll. Not checked against the real backend or on a phone width |
 
 ---
 

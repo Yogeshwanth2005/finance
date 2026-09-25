@@ -41,7 +41,12 @@ function FundList({ id, title, rows, period }: Card & { period: FundWindow }) {
         {rows.length === 0 ? (
           <p className="text-xs leading-5 text-[#8a8f99]" data-testid={`fund-list-${id}-empty`}>No funds with enough history for this window.</p>
         ) : (
-          <ol className="space-y-3">
+          <ol
+            className="max-h-60 space-y-3 overflow-y-auto pr-2 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-[#0d7a5f]"
+            tabIndex={0}
+            aria-label={`${title} funds`}
+            data-testid={`fund-list-${id}-scroll`}
+          >
             {rows.map((fund, index) => {
               const value = fund.returns[period];
               return (
